@@ -1,0 +1,13 @@
+# Node dependencies
+node_modules/
+
+# Environment variables (keeps your database passwords safe)
+.env
+
+# Build files
+client/build/
+client/dist/
+
+# OS generated files
+.DS_Store
+Thumbs.db
