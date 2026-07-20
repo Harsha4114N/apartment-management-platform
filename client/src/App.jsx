@@ -1,3 +1,4 @@
+import AdminNotifications from './pages/AdminNotifications';
 import React from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
@@ -12,6 +13,7 @@ function App() {
       <Toaster position="top-right" toastOptions={{ duration: 3000 }} />
       
       <Routes>
+        <Route path="/admin/notifications" element={<AdminNotifications />} />
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
         <Route path="/dashboard" element={<Dashboard />} />
