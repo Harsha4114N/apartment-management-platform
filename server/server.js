@@ -4,6 +4,7 @@ dns.setServers(['8.8.8.8', '1.1.1.1']);
 // ------------------------
 
 const express = require('express');
+const twilio = require('twilio');   
 const cors = require('cors');
 const dotenv = require('dotenv');
 const mongoose = require('mongoose');
@@ -36,4 +37,23 @@ app.get('/api/status', (req, res) => {
 
 app.listen(PORT, () => {
     console.log(`Server executing seamlessly on port ${PORT}`);
+});
+app.post('/api/admin/notify', async (req, res) => {
+  const { sendTo, notificationTitle, message } = req.body;
+
+  try {
+    const twilioClient = twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN);
+    const twilioResponse = await twilioClient.messages.create({
+      body: `🚨 *New Alert: ${notificationTitle}*\n\nTarget: ${sendTo}\n\nMessage: ${message}`,
+      from: 'whatsapp:+14155238886', 
+      to: `whatsapp:${process.env.MY_PHONE_NUMBER}`
+    });
+
+    console.log('WhatsApp dispatched! SID:', twilioResponse.sid);
+    res.status(200).json({ success: true, messageId: twilioResponse.sid });
+
+  } catch (error) {
+    console.error('Twilio Error:', error);
+    res.status(500).json({ success: false, error: 'Failed to send WhatsApp message' });
+  }
 });

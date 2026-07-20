@@ -1,72 +1,83 @@
-import toast from 'react-hot-toast';
-import React, { useState } from 'react';
+import { useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import axios from 'axios';
-import { useNavigate } from 'react-router-dom';
+import toast from 'react-hot-toast';
 
 export default function Login() {
-  const [credentials, setCredentials] = useState({
-    email: '',
-    password: ''
-  });
-
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const navigate = useNavigate();
 
-  const handleChange = (e) => {
-    setCredentials({ ...credentials, [e.target.name]: e.target.value });
-  };
-
-  const handleSubmit = async (e) => {
+  const handleLogin = async (e) => {
     e.preventDefault();
+    const toastId = toast.loading('Authenticating...');
+
     try {
-      // 1. Send credentials to the backend
-      const response = await axios.post('https://apartment-management-platform.onrender.com/api/auth/login', credentials);
+      // Validate credentials with the backend
+      const response = await axios.post('http://localhost:5000/api/auth/login', { 
+        email, 
+        password 
+      });
+
+      // Save the JWT token so the user stays logged in
+      localStorage.setItem('token', response.data.token);
       
-      // 2. Catch the JWT token sent back by the server
-      const token = response.data.token;
-      
-      // 3. Store the token in the browser's local storage
-      localStorage.setItem('token', token);
-      
-      toast.success("Authentication Successful!");
-      
-      // 4. Route the authenticated user to the secure dashboard
-      navigate('/dashboard');
+      toast.success('Welcome back!', { id: toastId });
+      navigate('/dashboard'); // Grant access to the app
     } catch (error) {
-      console.error("Login Error:", error.response?.data || error.message);
-      toast.error("Invalid credentials. Please try again.");
+      console.error(error);
+      const errorMessage = error.response?.data?.message || 'Invalid email or password.';
+      toast.error(errorMessage, { id: toastId });
     }
   };
 
   return (
-    <div style={{ padding: '40px', fontFamily: 'sans-serif' }}>
-      <h2>Resident Login</h2>
-      <p>Access your apartment dashboard.</p>
-      
-      <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', width: '300px', gap: '15px', marginTop: '20px' }}>
-        <input 
-          type="email" 
-          name="email" 
-          placeholder="Email Address" 
-          onChange={handleChange} 
-          required 
-          style={{ padding: '8px' }}
-        />
-        <input 
-          type="password" 
-          name="password" 
-          placeholder="Password" 
-          onChange={handleChange} 
-          required 
-          style={{ padding: '8px' }}
-        />
-        <button type="submit" style={{ padding: '10px', cursor: 'pointer', backgroundColor: '#28a745', color: 'white', border: 'none', borderRadius: '4px' }}>
-          Secure Login
-        </button>
-      </form>
+    <div className="min-h-screen flex items-center justify-center bg-slate-50 p-4 font-sans">
+      <div className="max-w-md w-full bg-white p-8 rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-slate-100">
+        
+        <div className="text-center mb-8">
+          <h1 className="text-2xl font-bold text-slate-800 tracking-tight mb-2">Welcome Back</h1>
+          <p className="text-slate-500 text-sm">Access your resident dashboard</p>
+        </div>
 
-      <p style={{ marginTop: '20px', fontSize: '14px' }}>
-        Don't have an account? <a href="/register" style={{ color: '#007bff' }}>Register here</a>.
-      </p>
+        <form onSubmit={handleLogin} className="space-y-5">
+          <div>
+            <label className="block text-sm font-semibold text-slate-700 mb-2">Email Address</label>
+            <input
+              type="email"
+              placeholder="resident@example.com"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-700 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 transition-all"
+              required
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-semibold text-slate-700 mb-2">Password</label>
+            <input
+              type="password"
+              placeholder="••••••••"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-700 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 transition-all"
+              required
+            />
+          </div>
+
+          <button 
+            type="submit" 
+            className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3.5 rounded-xl font-bold tracking-wide shadow-lg shadow-blue-200 transition-all duration-200 hover:-translate-y-0.5 mt-4"
+          >
+            Secure Login
+          </button>
+        </form>
+        
+        <div className="mt-6 text-center text-sm text-slate-500">
+          Don't have an account? <Link to="/register" className="text-blue-600 font-semibold cursor-pointer hover:underline">Register here</Link>
+        </div>
+
+      </div>
     </div>
   );
 }

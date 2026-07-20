@@ -1,84 +1,109 @@
-import toast from 'react-hot-toast';
-import React, { useState } from 'react';
+import { useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import axios from 'axios';
-import { useNavigate } from 'react-router-dom';
+import toast from 'react-hot-toast';
 
 export default function Register() {
-  // 1. Initialize the state to hold our form data
-  const [formData, setFormData] = useState({
-    fullName: '',
-    email: '',
-    password: '',
-    flatNumber: ''
-  });
-
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
+  const [apartment, setApartment] = useState('');
+  const [password, setPassword] = useState('');
   const navigate = useNavigate();
 
-  // 2. Update the state dynamically as the user types
-  const handleChange = (e) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
-  };
+  const handleRegister = async (e) => {
+    e.preventDefault();
+    const toastId = toast.loading('Creating account...');
 
-  // 3. Handle the form submission
-  const handleSubmit = async (e) => {
-    e.preventDefault(); // Prevents the page from refreshing
     try {
-      // Send the POST request to your verified backend route
-      const response = await axios.post('https://apartment-management-platform.onrender.com/api/auth/register', formData);
-      
-      toast.success('Registration successful! Rerouting to login...');
-      
-      
-      // If successful, automatically push the user to the login page
-      navigate('/login');
+      // Map the frontend state to the exact keys the backend expects
+      await axios.post('http://localhost:5000/api/auth/register', { 
+        fullName: name, 
+        email: email, 
+        flatNumber: apartment, 
+        password: password 
+      });
+
+      toast.success('Account created successfully!', { id: toastId });
+      navigate('/login'); 
     } catch (error) {
-      toast.error('Registration failed. Check the console for details.');
-      alert('Registration failed. Check the console for details.');
+      console.error(error);
+      const errorMessage = error.response?.data?.message || 'Failed to create account.';
+      toast.error(errorMessage, { id: toastId });
     }
   };
 
   return (
-    <div style={{ padding: '40px', fontFamily: 'sans-serif' }}>
-      <h2>Resident Registration</h2>
-      <p>Enter your details to create an account on the platform.</p>
-      
-      <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', width: '300px', gap: '15px', marginTop: '20px' }}>
-        <input 
-          type="text" 
-          name="fullName" 
-          placeholder="Full Name" 
-          onChange={handleChange} 
-          required 
-          style={{ padding: '8px' }}
-        />
-        <input 
-          type="email" 
-          name="email" 
-          placeholder="Email Address" 
-          onChange={handleChange} 
-          required 
-          style={{ padding: '8px' }}
-        />
-        <input 
-          type="password" 
-          name="password" 
-          placeholder="Secure Password" 
-          onChange={handleChange} 
-          required 
-          style={{ padding: '8px' }}
-        />
-        <input 
-          type="text" 
-          name="flatNumber" 
-          placeholder="Flat Number (e.g., B-404)" 
-          onChange={handleChange} 
-          required 
-          style={{ padding: '8px' }}
-        />
-        <button type="submit" style={{ padding: '10px', cursor: 'pointer', backgroundColor: '#007bff', color: 'white', border: 'none', borderRadius: '4px' }}>
-          Register Account
-        </button>
-      </form>
+    <div className="min-h-screen flex items-center justify-center bg-slate-50 p-4 font-sans">
+      <div className="max-w-md w-full bg-white p-8 rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-slate-100">
+        
+        <div className="text-center mb-8">
+          <h1 className="text-2xl font-bold text-slate-800 tracking-tight mb-2">Create Account</h1>
+          <p className="text-slate-500 text-sm">Join the apartment management platform</p>
+        </div>
+
+        <form onSubmit={handleRegister} className="space-y-4">
+          <div>
+            <label className="block text-sm font-semibold text-slate-700 mb-1.5">Full Name</label>
+            <input
+              type="text"
+              placeholder="John Doe"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 transition-all"
+              required
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div className="col-span-2 sm:col-span-1">
+              <label className="block text-sm font-semibold text-slate-700 mb-1.5">Email</label>
+              <input
+                type="email"
+                placeholder="john@example.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 transition-all"
+                required
+              />
+            </div>
+            <div className="col-span-2 sm:col-span-1">
+              <label className="block text-sm font-semibold text-slate-700 mb-1.5">Apt Number</label>
+              <input
+                type="text"
+                placeholder="e.g., 402B"
+                value={apartment}
+                onChange={(e) => setApartment(e.target.value)}
+                className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 transition-all"
+                required
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-semibold text-slate-700 mb-1.5">Password</label>
+            <input
+              type="password"
+              placeholder="••••••••"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 transition-all"
+              required
+            />
+          </div>
+
+          <button 
+            type="submit" 
+            className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3.5 rounded-xl font-bold tracking-wide shadow-lg shadow-blue-200 transition-all duration-200 hover:-translate-y-0.5 mt-2"
+          >
+            Create Account
+          </button>
+        </form>
+        
+        <div className="mt-6 text-center text-sm text-slate-500">
+          Already have an account? <Link to="/login" className="text-blue-600 font-semibold cursor-pointer hover:underline">Log in</Link>
+        </div>
+
+      </div>
     </div>
   );
 }
