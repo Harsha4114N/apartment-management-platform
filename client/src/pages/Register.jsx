@@ -1,3 +1,4 @@
+import toast from 'react-hot-toast';
 import React, { useState } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
@@ -25,13 +26,13 @@ export default function Register() {
       // Send the POST request to your verified backend route
       const response = await axios.post('https://apartment-management-platform.onrender.com/api/auth/register', formData);
       
-      console.log("Server Response:", response.data);
+      toast.success('Registration successful! Rerouting to login...');
       alert('Registration successful! Rerouting to login...');
       
       // If successful, automatically push the user to the login page
       navigate('/login');
     } catch (error) {
-      console.error("Registration Error:", error.response?.data || error.message);
+      toast.error('Registration failed. Check the console for details.');
       alert('Registration failed. Check the console for details.');
     }
   };

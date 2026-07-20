@@ -1,3 +1,4 @@
+import toast from 'react-hot-toast';
 import React, { useState } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
@@ -26,13 +27,13 @@ export default function Login() {
       // 3. Store the token in the browser's local storage
       localStorage.setItem('token', token);
       
-      console.log("Authentication Successful. Token stored.");
+      toast.success("Authentication Successful!");
       
       // 4. Route the authenticated user to the secure dashboard
       navigate('/dashboard');
     } catch (error) {
       console.error("Login Error:", error.response?.data || error.message);
-      alert('Invalid credentials. Please try again.');
+      toast.error("Invalid credentials. Please try again.");
     }
   };
 
