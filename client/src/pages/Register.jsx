@@ -27,7 +27,7 @@ export default function Register() {
       const response = await axios.post('https://apartment-management-platform.onrender.com/api/auth/register', formData);
       
       toast.success('Registration successful! Rerouting to login...');
-      alert('Registration successful! Rerouting to login...');
+      
       
       // If successful, automatically push the user to the login page
       navigate('/login');
