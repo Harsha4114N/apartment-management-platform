@@ -29,7 +29,7 @@ export default function Dashboard() {
     const fetchTickets = async () => {
       if (!token) return;
       try {
-        const response = await axios.get('http://localhost:5000/api/tickets', {
+        const response = await axios.get('https://apartment-management-platform.onrender.com/api/tickets', {
           headers: { 'x-auth-token': token }
         });
         setTickets(response.data);
@@ -57,7 +57,7 @@ export default function Dashboard() {
         }
       };
       
-      const response = await axios.post('http://localhost:5000/api/tickets', formData, config);
+      const response = await axios.post('https://apartment-management-platform.onrender.com/api/tickets', formData, config);
       
       // Optimistic UI update
       setTickets([response.data, ...tickets]);
@@ -73,7 +73,7 @@ export default function Dashboard() {
   // 7. Delete Lifecycle
   const onDelete = async (id) => {
     try {
-      await axios.delete(`http://localhost:5000/api/tickets/${id}`, {
+      await axios.delete(`https://apartment-management-platform.onrender.com/api/tickets/${id}`, {
         headers: { 'x-auth-token': token }
       });
       
@@ -87,7 +87,7 @@ export default function Dashboard() {
   // Update Lifecycle (Resolve Ticket)
   const onResolve = async (id) => {
     try {
-      const response = await axios.put(`http://localhost:5000/api/tickets/${id}`, {}, {
+      const response = await axios.put(`https://apartment-management-platform.onrender.com/api/tickets/${id}`, {}, {
         headers: { 'x-auth-token': token }
       });
       

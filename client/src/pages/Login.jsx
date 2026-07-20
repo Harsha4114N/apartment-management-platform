@@ -18,7 +18,7 @@ export default function Login() {
     e.preventDefault();
     try {
       // 1. Send credentials to the backend
-      const response = await axios.post('http://localhost:5000/api/auth/login', credentials);
+      const response = await axios.post('https://apartment-management-platform.onrender.com/api/auth/login', credentials);
       
       // 2. Catch the JWT token sent back by the server
       const token = response.data.token;

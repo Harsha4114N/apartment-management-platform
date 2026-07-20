@@ -23,7 +23,7 @@ export default function Register() {
     e.preventDefault(); // Prevents the page from refreshing
     try {
       // Send the POST request to your verified backend route
-      const response = await axios.post('http://localhost:5000/api/auth/register', formData);
+      const response = await axios.post('https://apartment-management-platform.onrender.com/api/auth/register', formData);
       
       console.log("Server Response:", response.data);
       alert('Registration successful! Rerouting to login...');
