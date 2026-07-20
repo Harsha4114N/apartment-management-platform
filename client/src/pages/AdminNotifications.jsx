@@ -1,13 +1,13 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
+import toast from 'react-hot-toast';
 
 export default function AdminNotifications() {
-  // State for form inputs
-  const [sendTo, setSendTo] = useState('all'); // 'all' or 'specific'
+  const [sendTo, setSendTo] = useState('all');
   const [selectedResident, setSelectedResident] = useState('');
   const [notificationTitle, setNotificationTitle] = useState('');
   const [message, setMessage] = useState('');
 
-  // Dummy data for the right column (will eventually come from MongoDB)
+  // Dummy data simulating MongoDB fetch
   const recentNotifications = [
     {
       id: 1,
@@ -20,56 +20,64 @@ export default function AdminNotifications() {
 
   const handleSendNotification = (e) => {
     e.preventDefault();
-    // This will later be connected to your Axios POST request
+    
+    // Simulating the Axios post to our future Twilio/Express backend
     console.log({ sendTo, selectedResident, notificationTitle, message });
-    alert('Notification queued for delivery!');
+    
+    // Interactive success feedback using react-hot-toast
+    toast.success('WhatsApp Notification queued for delivery!');
+    
+    // Clear form
+    setNotificationTitle('');
+    setMessage('');
   };
 
   return (
-    <div style={{ padding: '20px', backgroundColor: '#f3f4f6', minHeight: '100vh', display: 'flex', gap: '24px', flexWrap: 'wrap' }}>
+    <div className="min-h-screen bg-slate-50 p-6 md:p-12 flex flex-wrap gap-8 font-sans justify-center">
       
-      {/* LEFT COLUMN: Create Notification Form */}
-      <div style={{ flex: '1 1 500px', backgroundColor: '#ffffff', padding: '24px', borderRadius: '8px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
-        <h2 style={{ fontSize: '1.25rem', fontWeight: 'bold', marginBottom: '16px' }}>Create Notification</h2>
+      {/* LEFT COLUMN: Compose Notification */}
+      <div className="flex-1 min-w-[320px] max-w-[600px] bg-white p-8 rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-slate-100 transition-all duration-300 hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)]">
+        <h2 className="text-2xl font-bold text-slate-800 mb-6 tracking-tight">Create Notification</h2>
         
-        <form onSubmit={handleSendNotification}>
+        <form onSubmit={handleSendNotification} className="space-y-6">
+          
           {/* Send To Toggle */}
-          <div style={{ marginBottom: '16px' }}>
-            <label style={{ display: 'block', fontSize: '0.875rem', marginBottom: '8px', color: '#374151' }}>Send To</label>
-            <div style={{ display: 'flex', gap: '8px' }}>
+          <div>
+            <label className="block text-sm font-medium text-slate-600 mb-3">Send To</label>
+            <div className="flex gap-3">
               <button
                 type="button"
                 onClick={() => setSendTo('all')}
-                style={{
-                  padding: '8px 16px', borderRadius: '4px', border: '1px solid #d1d5db', cursor: 'pointer',
-                  backgroundColor: sendTo === 'all' ? '#2563eb' : '#ffffff',
-                  color: sendTo === 'all' ? '#ffffff' : '#374151'
-                }}
+                className={`flex-1 py-2.5 px-4 rounded-xl text-sm font-semibold transition-all duration-200 ${
+                  sendTo === 'all' 
+                    ? 'bg-indigo-600 text-white shadow-md shadow-indigo-200' 
+                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                }`}
               >
                 All Residents
               </button>
               <button
                 type="button"
                 onClick={() => setSendTo('specific')}
-                style={{
-                  padding: '8px 16px', borderRadius: '4px', border: '1px solid #d1d5db', cursor: 'pointer',
-                  backgroundColor: sendTo === 'specific' ? '#2563eb' : '#ffffff',
-                  color: sendTo === 'specific' ? '#ffffff' : '#374151'
-                }}
+                className={`flex-1 py-2.5 px-4 rounded-xl text-sm font-semibold transition-all duration-200 ${
+                  sendTo === 'specific' 
+                    ? 'bg-indigo-600 text-white shadow-md shadow-indigo-200' 
+                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                }`}
               >
                 Specific Resident
               </button>
             </div>
           </div>
 
-          {/* Conditional Dropdown for Specific Resident */}
+          {/* Conditional Dropdown */}
           {sendTo === 'specific' && (
-            <div style={{ marginBottom: '16px' }}>
-              <label style={{ display: 'block', fontSize: '0.875rem', marginBottom: '8px', color: '#374151' }}>Select Resident</label>
+            <div className="animate-fade-in-down">
+              <label className="block text-sm font-medium text-slate-600 mb-2">Select Resident</label>
               <select 
                 value={selectedResident}
                 onChange={(e) => setSelectedResident(e.target.value)}
-                style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #d1d5db' }}
+                className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 transition-all cursor-pointer"
                 required
               >
                 <option value="">Choose a resident...</option>
@@ -80,56 +88,64 @@ export default function AdminNotifications() {
           )}
 
           {/* Title Input */}
-          <div style={{ marginBottom: '16px' }}>
-            <label style={{ display: 'block', fontSize: '0.875rem', marginBottom: '8px', color: '#374151' }}>Notification Title</label>
+          <div>
+            <label className="block text-sm font-medium text-slate-600 mb-2">Notification Title</label>
             <input
               type="text"
-              placeholder="Enter a short notification title"
+              placeholder="e.g., Emergency Maintenance"
               value={notificationTitle}
               onChange={(e) => setNotificationTitle(e.target.value)}
-              style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #d1d5db', boxSizing: 'border-box' }}
+              className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-700 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 transition-all"
               required
             />
           </div>
 
           {/* Message Textarea */}
-          <div style={{ marginBottom: '24px' }}>
-            <label style={{ display: 'block', fontSize: '0.875rem', marginBottom: '8px', color: '#374151' }}>Message</label>
+          <div>
+            <label className="block text-sm font-medium text-slate-600 mb-2">Message</label>
             <textarea
               rows="4"
-              placeholder="Write the notification message"
+              placeholder="Type the detailed alert here..."
               value={message}
               onChange={(e) => setMessage(e.target.value)}
-              style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #d1d5db', boxSizing: 'border-box', resize: 'vertical' }}
+              className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-700 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 transition-all resize-y"
               required
             ></textarea>
           </div>
 
           {/* Submit Button */}
-          <button type="submit" style={{ backgroundColor: '#2563eb', color: 'white', padding: '10px 24px', borderRadius: '4px', border: 'none', cursor: 'pointer', fontWeight: 'bold' }}>
-            Send Notification
+          <button 
+            type="submit" 
+            className="w-full bg-indigo-600 hover:bg-indigo-700 text-white py-3.5 rounded-xl font-bold tracking-wide shadow-lg shadow-indigo-200 transition-all duration-200 hover:-translate-y-0.5 active:translate-y-0"
+          >
+            Send via WhatsApp
           </button>
         </form>
       </div>
 
       {/* RIGHT COLUMN: Recent Notifications */}
-      <div style={{ flex: '1 1 400px', backgroundColor: '#ffffff', padding: '24px', borderRadius: '8px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
-        <h2 style={{ fontSize: '1.25rem', fontWeight: 'bold', marginBottom: '4px' }}>Recent Notifications</h2>
-        <p style={{ fontSize: '0.875rem', color: '#6b7280', marginBottom: '24px' }}>View notifications previously sent.</p>
+      <div className="flex-1 min-w-[320px] max-w-[500px] bg-white p-8 rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-slate-100 h-fit">
+        <h2 className="text-xl font-bold text-slate-800 mb-1 tracking-tight">Recent Dispatches</h2>
+        <p className="text-sm text-slate-500 mb-6">Log of previously sent alerts.</p>
         
-        <div>
+        <div className="space-y-4">
           {recentNotifications.map((note) => (
-            <div key={note.id} style={{ border: '1px solid #e5e7eb', borderRadius: '8px', padding: '16px', marginBottom: '16px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                <h3 style={{ fontWeight: 'bold', margin: 0 }}>{note.title}</h3>
-                <span style={{ fontSize: '0.75rem', color: '#6b7280' }}>{note.date}</span>
+            <div 
+              key={note.id} 
+              className="group p-5 border border-slate-100 bg-slate-50/50 rounded-2xl hover:bg-white hover:border-indigo-100 hover:shadow-lg hover:shadow-indigo-500/5 transition-all duration-300"
+            >
+              <div className="flex justify-between items-start mb-3">
+                <h3 className="font-semibold text-slate-800 text-base">{note.title}</h3>
+                <span className="text-xs font-medium text-slate-400 bg-slate-100 px-2 py-1 rounded-md">{note.date}</span>
               </div>
-              <p style={{ fontSize: '0.875rem', color: '#4b5563', margin: '0 0 8px 0' }}>{note.target}</p>
-              <p style={{ fontSize: '0.875rem', color: '#374151', margin: 0 }}>{note.message}</p>
+              <div className="inline-block mb-3 px-2.5 py-1 bg-indigo-50 text-indigo-600 text-xs font-bold rounded-md uppercase tracking-wider">
+                {note.target}
+              </div>
+              <p className="text-sm text-slate-600 leading-relaxed mb-4">{note.message}</p>
               
-              <div style={{ display: 'flex', gap: '8px', marginTop: '16px' }}>
-                <button style={{ padding: '4px 12px', fontSize: '0.75rem', color: '#2563eb', backgroundColor: '#eff6ff', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>Edit</button>
-                <button style={{ padding: '4px 12px', fontSize: '0.75rem', color: '#dc2626', backgroundColor: '#fef2f2', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>Delete</button>
+              <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                <button className="px-3 py-1.5 text-xs font-semibold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition-colors">Edit</button>
+                <button className="px-3 py-1.5 text-xs font-semibold text-rose-600 bg-rose-50 hover:bg-rose-100 rounded-lg transition-colors">Delete</button>
               </div>
             </div>
           ))}
@@ -138,4 +154,4 @@ export default function AdminNotifications() {
 
     </div>
   );
-}   
+}
