@@ -2,18 +2,16 @@ const express = require('express');
 const router = express.Router();
 const Ticket = require('../models/Ticket');
 const auth = require('../middleware/authMiddleware');
-const upload = require('../middleware/upload'); // Intercepts the image
+const upload = require('../middleware/upload'); 
 const twilio = require('twilio');
 
-// Initialize Twilio
 const client = twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN);
 
-// --- CREATE A NEW TICKET (WITH IMAGE UPLOAD) ---
+// --- CREATE A NEW TICKET (WITH WHATSAPP IMAGE ATTACHMENT) ---
 router.post('/', auth, upload.single('image'), async (req, res) => {
     try {
         const { title, description, category } = req.body;
         
-        // Grab the Cloudinary URL if an image was uploaded
         const imageUrl = req.file ? req.file.path : '';
 
         const newTicket = new Ticket({
@@ -21,20 +19,30 @@ router.post('/', auth, upload.single('image'), async (req, res) => {
             title,
             description,
             category,
-            imageUrl, // Save the URL to MongoDB
+            imageUrl, 
             status: 'Open'
         });
 
         const ticket = await newTicket.save();
 
-        // Fire off the WhatsApp Notification
+        // --- NEW TWILIO LOGIC ---
         try {
-            await client.messages.create({
-                body: `🚨 *New Maintenance Ticket*\n\n*Issue:* ${title}\n*Category:* ${category}\n*Details:* ${description}${imageUrl ? '\n*(Image attached to ticket)*' : ''}`,
+            // 1. Build the base message
+            const messagePayload = {
+                body: `🚨 *New Maintenance Ticket*\n\n*Issue:* ${title}\n*Category:* ${category}\n*Details:* ${description}`,
                 from: 'whatsapp:+14155238886', 
                 to: `whatsapp:${process.env.MY_PHONE_NUMBER}`
-            });
-            console.log("WhatsApp notification sent successfully!");
+            };
+
+            // 2. If an image was uploaded, attach it to the WhatsApp message!
+            if (imageUrl) {
+                // Twilio requires mediaUrl to be an array
+                messagePayload.mediaUrl = [imageUrl]; 
+            }
+
+            // 3. Send the message
+            await client.messages.create(messagePayload);
+            console.log("WhatsApp notification with media sent successfully!");
         } catch (twilioErr) {
             console.error("Failed to send WhatsApp message:", twilioErr.message);
         }
