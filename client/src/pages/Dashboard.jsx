@@ -17,15 +17,23 @@ export default function Dashboard() {
     const toastId = toast.loading('Submitting ticket...');
 
     try {
-      // 1. Here is where your existing code to save the ticket to MongoDB goes
-      // await axios.post('/api/tickets', { title, category, description });
+      // 1. Grab the token that was saved during login
+      const token = localStorage.getItem('token'); 
 
-      // 2. The NEW Event Trigger: Send the WhatsApp Alert to the Admin
-      await axios.post('https://apartment-management-platform.onrender.com/api/tickets', {
-        sendTo: 'Admin', // Routing to admin
-        notificationTitle: `New Issue: ${title}`,
-        message: `Category: ${category}\nDetails: ${description}`
-      });
+      // 2. Send the data AND the token headers to your live Render backend
+      await axios.post('https://apartment-management-platform.onrender.com/api/tickets', 
+        {
+          sendTo: 'Admin', 
+          notificationTitle: `New Issue: ${title}`,
+          message: `Category: ${category}\nDetails: ${description}`
+        },
+        {
+          // This is the digital ID card that fixes the 401 error!
+          headers: {
+            Authorization: `Bearer ${token}`
+          }
+        }
+      );
 
       toast.success('Ticket submitted and Admin notified!', { id: toastId });
       
