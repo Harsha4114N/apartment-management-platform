@@ -35,7 +35,7 @@ const ticketSchema = new mongoose.Schema({
         type: String,
         enum: ['Low', 'Medium', 'High', 'Emergency'],
         default: 'Low'
-    }
+    },
     flatNumber: {
     type: String,
     required: true
