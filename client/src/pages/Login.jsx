@@ -14,7 +14,7 @@ export default function Login() {
 
     try {
       // Validate credentials with the backend
-      const response = await axios.post('http://localhost:5000/api/auth/login', { 
+      const response = await axios.post('https://apartment-management-platform.onrender.com/api/auth/login', { 
         email, 
         password 
       });
