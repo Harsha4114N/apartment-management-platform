@@ -2,38 +2,41 @@ const express = require('express');
 const router = express.Router();
 const Ticket = require('../models/Ticket');
 const auth = require('../middleware/authMiddleware');
-
-// 1. Import and initialize Twilio using your Render environment variables
+const upload = require('../middleware/upload'); // Intercepts the image
 const twilio = require('twilio');
+
+// Initialize Twilio
 const client = twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN);
 
-// --- CREATE A NEW TICKET ---
-router.post('/', auth, async (req, res) => {
+// --- CREATE A NEW TICKET (WITH IMAGE UPLOAD) ---
+router.post('/', auth, upload.single('image'), async (req, res) => {
     try {
         const { title, description, category } = req.body;
+        
+        // Grab the Cloudinary URL if an image was uploaded
+        const imageUrl = req.file ? req.file.path : '';
 
         const newTicket = new Ticket({
             resident: req.user.id,
             title,
             description,
             category,
+            imageUrl, // Save the URL to MongoDB
             status: 'Open'
         });
 
         const ticket = await newTicket.save();
 
-        // 2. Fire off the WhatsApp Notification!
+        // Fire off the WhatsApp Notification
         try {
             await client.messages.create({
-                body: `🚨 *New Maintenance Ticket*\n\n*Issue:* ${title}\n*Category:* ${category}\n*Details:* ${description}`,
-                // Note: If you are using a purchased Twilio number, replace this sandbox number with yours.
+                body: `🚨 *New Maintenance Ticket*\n\n*Issue:* ${title}\n*Category:* ${category}\n*Details:* ${description}${imageUrl ? '\n*(Image attached to ticket)*' : ''}`,
                 from: 'whatsapp:+14155238886', 
                 to: `whatsapp:${process.env.MY_PHONE_NUMBER}`
             });
             console.log("WhatsApp notification sent successfully!");
         } catch (twilioErr) {
             console.error("Failed to send WhatsApp message:", twilioErr.message);
-            // We only log the error so the app doesn't crash if Twilio has a hiccup
         }
 
         res.status(201).json(ticket);
@@ -43,7 +46,7 @@ router.post('/', auth, async (req, res) => {
     }
 });
 
-// --- GET ALL TICKETS FOR THE LOGGED-IN RESIDENT ---
+// --- GET ALL TICKETS ---
 router.get('/', auth, async (req, res) => {
     try {
         const tickets = await Ticket.find({ resident: req.user.id }).sort({ createdAt: -1 });

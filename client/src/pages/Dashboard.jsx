@@ -7,13 +7,11 @@ export default function Dashboard() {
   const [title, setTitle] = useState('');
   const [category, setCategory] = useState('Plumbing');
   const [description, setDescription] = useState('');
+  const [image, setImage] = useState(null); // New state for the image file
   
   const navigate = useNavigate();
-
-  // Start with an empty list. The database will fill this in!
   const [tickets, setTickets] = useState([]);
 
-  // --- FETCH TICKETS ON LOAD ---
   useEffect(() => {
     fetchTickets();
   }, []);
@@ -21,42 +19,46 @@ export default function Dashboard() {
   const fetchTickets = async () => {
     try {
       const token = localStorage.getItem('token');
-      if (!token) return; // Stop if not logged in
+      if (!token) return;
 
       const response = await axios.get('https://apartment-management-platform.onrender.com/api/tickets', {
         headers: { Authorization: `Bearer ${token}` }
       });
       
-      setTickets(response.data); // Load the real database tickets into the UI!
+      setTickets(response.data);
     } catch (error) {
       console.error("Error fetching tickets:", error);
     }
   };
 
-  // --- LOGOUT FUNCTION ---
   const handleLogout = () => {
     localStorage.removeItem('token');
     toast.success('Logged out successfully');
     navigate('/');
   };
 
-  // --- SUBMIT TICKET FUNCTION ---
   const handleSubmitTicket = async (e) => {
     e.preventDefault();
-    const toastId = toast.loading('Submitting ticket...');
+    const toastId = toast.loading('Submitting ticket with image (this may take a few seconds)...');
 
     try {
       const token = localStorage.getItem('token'); 
 
+      // We must use FormData instead of a standard JSON object to send files
+      const formData = new FormData();
+      formData.append('title', title);
+      formData.append('category', category);
+      formData.append('description', description);
+      if (image) {
+        formData.append('image', image);
+      }
+
       await axios.post('https://apartment-management-platform.onrender.com/api/tickets', 
-        {
-          title: title,
-          category: category,
-          description: description
-        },
+        formData,
         {
           headers: {
-            Authorization: `Bearer ${token}`
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'multipart/form-data'
           }
         }
       );
@@ -66,8 +68,10 @@ export default function Dashboard() {
       // Clear form
       setTitle('');
       setDescription('');
+      setImage(null);
+      // Reset the file input visually
+      document.getElementById('file-upload').value = '';
       
-      // Instantly fetch the updated list of tickets from the database!
       fetchTickets();
       
     } catch (error) {
@@ -76,21 +80,16 @@ export default function Dashboard() {
     }
   };
 
-  // --- RESOLVE TICKET FUNCTION ---
   const handleResolveTicket = async (ticketId) => {
     try {
       const token = localStorage.getItem('token');
-      
       await axios.put(`https://apartment-management-platform.onrender.com/api/tickets/${ticketId}`, 
         { status: 'Resolved' },
         { headers: { Authorization: `Bearer ${token}` } }
       );
-      
-      // Update the UI
       setTickets(tickets.map(ticket => 
         ticket._id === ticketId ? { ...ticket, status: 'Resolved' } : ticket
       ));
-      
       toast.success('Ticket marked as resolved!');
     } catch (error) {
       console.error(error);
@@ -98,18 +97,13 @@ export default function Dashboard() {
     }
   };
 
-  // --- DELETE TICKET FUNCTION ---
   const handleDeleteTicket = async (ticketId) => {
     try {
       const token = localStorage.getItem('token');
-      
       await axios.delete(`https://apartment-management-platform.onrender.com/api/tickets/${ticketId}`, 
         { headers: { Authorization: `Bearer ${token}` } }
       );
-      
-      // Update the UI
       setTickets(tickets.filter(ticket => ticket._id !== ticketId));
-      
       toast.success('Ticket deleted!');
     } catch (error) {
       console.error(error);
@@ -120,7 +114,6 @@ export default function Dashboard() {
   return (
     <div className="min-h-screen bg-slate-50 p-6 md:p-12 font-sans">
       
-      {/* Top Header */}
       <div className="max-w-3xl mx-auto flex justify-between items-center mb-8">
         <h1 className="text-2xl font-bold text-slate-800 tracking-tight">Resident Dashboard</h1>
         <button 
@@ -133,7 +126,6 @@ export default function Dashboard() {
 
       <div className="max-w-3xl mx-auto space-y-8">
         
-        {/* Report Issue Card */}
         <div className="bg-white p-8 rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-slate-100">
           <h2 className="text-xl font-bold text-slate-800 mb-6 text-center">Report an Issue</h2>
           
@@ -157,7 +149,8 @@ export default function Dashboard() {
               >
                 <option value="Plumbing">Plumbing</option>
                 <option value="Electrical">Electrical</option>
-                <option value="Network">Network</option>
+                <option value="Carpentry">Carpentry</option>
+                <option value="Security">Security</option>
                 <option value="General">General</option>
               </select>
             </div>
@@ -173,6 +166,18 @@ export default function Dashboard() {
               ></textarea>
             </div>
 
+            {/* NEW FILE UPLOAD INPUT */}
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-2">Attach a Photo (Optional)</label>
+              <input
+                id="file-upload"
+                type="file"
+                accept="image/*"
+                onChange={(e) => setImage(e.target.files[0])}
+                className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl text-slate-700 focus:outline-none transition-all file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100 cursor-pointer"
+              />
+            </div>
+
             <button 
               type="submit" 
               className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3.5 rounded-xl font-bold tracking-wide shadow-lg shadow-blue-200 transition-all duration-200 hover:-translate-y-0.5 active:translate-y-0"
@@ -182,13 +187,12 @@ export default function Dashboard() {
           </form>
         </div>
 
-        {/* Tickets List Card */}
         <div className="bg-white p-8 rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-slate-100 border-l-4 border-l-blue-600">
           {tickets.length === 0 ? (
             <p className="text-slate-500 text-center py-4">No tickets found. Submit one above!</p>
           ) : (
             tickets.map(ticket => (
-              <div key={ticket._id} className="space-y-3 mb-6 pb-6 border-b border-slate-100 last:border-0 last:mb-0 last:pb-0">
+              <div key={ticket._id} className="space-y-3 mb-8 pb-8 border-b border-slate-100 last:border-0 last:mb-0 last:pb-0">
                 <div className="flex items-center gap-3">
                   <h3 className="text-lg font-bold text-slate-800">{ticket.title}</h3>
                   <span className={`px-2.5 py-1 text-xs font-semibold rounded-md uppercase tracking-wider ${ticket.status === 'Resolved' ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>
@@ -197,7 +201,19 @@ export default function Dashboard() {
                 </div>
                 <p className="text-sm font-semibold text-indigo-600">{ticket.category}</p>
                 <p className="text-slate-600 leading-relaxed">{ticket.description}</p>
-                <div className="flex gap-3 pt-2">
+                
+                {/* DISPLAY UPLOADED IMAGE IF IT EXISTS */}
+                {ticket.imageUrl && (
+                  <div className="mt-4">
+                    <img 
+                      src={ticket.imageUrl} 
+                      alt="Ticket issue" 
+                      className="max-w-full h-48 md:h-64 object-cover rounded-xl border border-slate-200 shadow-sm"
+                    />
+                  </div>
+                )}
+
+                <div className="flex gap-3 pt-4">
                   {ticket.status !== 'Resolved' && (
                     <button 
                       onClick={() => handleResolveTicket(ticket._id)}
@@ -217,7 +233,6 @@ export default function Dashboard() {
             ))
           )}
         </div>
-
       </div>
     </div>
   );

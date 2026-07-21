@@ -16,6 +16,11 @@ const ticketSchema = new mongoose.Schema({
         type: String,
         required: true
     },
+    // NEW: Cloudinary Image URL storage
+    imageUrl: {
+        type: String,
+        default: '' // Defaults to an empty string if no picture is uploaded
+    },
     category: {
         type: String,
         enum: ['Electrical', 'Plumbing', 'Carpentry', 'Security', 'General'],
