@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import toast from 'react-hot-toast';
@@ -10,16 +10,34 @@ export default function Dashboard() {
   
   const navigate = useNavigate();
 
-  // Dummy state for tickets - replace with your actual MongoDB fetch logic later
-  const [tickets, setTickets] = useState([
-    { id: 1, title: 'working', status: 'Open', description: 'cannot work due to network problems' }
-  ]);
+  // Start with an empty list. The database will fill this in!
+  const [tickets, setTickets] = useState([]);
+
+  // --- FETCH TICKETS ON LOAD ---
+  useEffect(() => {
+    fetchTickets();
+  }, []);
+
+  const fetchTickets = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) return; // Stop if not logged in
+
+      const response = await axios.get('https://apartment-management-platform.onrender.com/api/tickets', {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      
+      setTickets(response.data); // Load the real database tickets into the UI!
+    } catch (error) {
+      console.error("Error fetching tickets:", error);
+    }
+  };
 
   // --- LOGOUT FUNCTION ---
   const handleLogout = () => {
-    localStorage.removeItem('token'); // Clears the ID card
+    localStorage.removeItem('token');
     toast.success('Logged out successfully');
-    navigate('/'); // Sends you back to the login page
+    navigate('/');
   };
 
   // --- SUBMIT TICKET FUNCTION ---
@@ -30,7 +48,6 @@ export default function Dashboard() {
     try {
       const token = localStorage.getItem('token'); 
 
-      // 2. Send the exact fields MongoDB is asking for
       await axios.post('https://apartment-management-platform.onrender.com/api/tickets', 
         {
           title: title,
@@ -44,11 +61,15 @@ export default function Dashboard() {
         }
       );
       
-      toast.success('Ticket submitted and Admin notified!', { id: toastId });
+      toast.success('Ticket submitted successfully!', { id: toastId });
       
       // Clear form
       setTitle('');
       setDescription('');
+      
+      // Instantly fetch the updated list of tickets from the database!
+      fetchTickets();
+      
     } catch (error) {
       console.error(error);
       toast.error('Failed to submit ticket.', { id: toastId });
@@ -65,8 +86,9 @@ export default function Dashboard() {
         { headers: { Authorization: `Bearer ${token}` } }
       );
       
+      // Update the UI
       setTickets(tickets.map(ticket => 
-        ticket.id === ticketId ? { ...ticket, status: 'Resolved' } : ticket
+        ticket._id === ticketId ? { ...ticket, status: 'Resolved' } : ticket
       ));
       
       toast.success('Ticket marked as resolved!');
@@ -85,7 +107,8 @@ export default function Dashboard() {
         { headers: { Authorization: `Bearer ${token}` } }
       );
       
-      setTickets(tickets.filter(ticket => ticket.id !== ticketId));
+      // Update the UI
+      setTickets(tickets.filter(ticket => ticket._id !== ticketId));
       
       toast.success('Ticket deleted!');
     } catch (error) {
@@ -100,7 +123,6 @@ export default function Dashboard() {
       {/* Top Header */}
       <div className="max-w-3xl mx-auto flex justify-between items-center mb-8">
         <h1 className="text-2xl font-bold text-slate-800 tracking-tight">Resident Dashboard</h1>
-        {/* The Logout button is now properly wired up! */}
         <button 
           onClick={handleLogout}
           className="bg-rose-500 hover:bg-rose-600 text-white px-5 py-2 rounded-xl font-medium transition-colors shadow-md shadow-rose-200"
@@ -162,31 +184,38 @@ export default function Dashboard() {
 
         {/* Tickets List Card */}
         <div className="bg-white p-8 rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-slate-100 border-l-4 border-l-blue-600">
-          {tickets.map(ticket => (
-            <div key={ticket.id} className="space-y-3">
-              <div className="flex items-center gap-3">
-                <h3 className="text-lg font-bold text-slate-800">{ticket.title}</h3>
-                <span className="px-2.5 py-1 bg-slate-100 text-slate-500 text-xs font-semibold rounded-md uppercase tracking-wider">
-                  ({ticket.status})
-                </span>
+          {tickets.length === 0 ? (
+            <p className="text-slate-500 text-center py-4">No tickets found. Submit one above!</p>
+          ) : (
+            tickets.map(ticket => (
+              <div key={ticket._id} className="space-y-3 mb-6 pb-6 border-b border-slate-100 last:border-0 last:mb-0 last:pb-0">
+                <div className="flex items-center gap-3">
+                  <h3 className="text-lg font-bold text-slate-800">{ticket.title}</h3>
+                  <span className={`px-2.5 py-1 text-xs font-semibold rounded-md uppercase tracking-wider ${ticket.status === 'Resolved' ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>
+                    ({ticket.status || 'Open'})
+                  </span>
+                </div>
+                <p className="text-sm font-semibold text-indigo-600">{ticket.category}</p>
+                <p className="text-slate-600 leading-relaxed">{ticket.description}</p>
+                <div className="flex gap-3 pt-2">
+                  {ticket.status !== 'Resolved' && (
+                    <button 
+                      onClick={() => handleResolveTicket(ticket._id)}
+                      className="px-4 py-2 text-sm font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded-lg transition-colors"
+                    >
+                      Mark as Resolved
+                    </button>
+                  )}
+                  <button 
+                    onClick={() => handleDeleteTicket(ticket._id)}
+                    className="px-4 py-2 text-sm font-semibold text-rose-700 bg-rose-50 hover:bg-rose-100 rounded-lg transition-colors"
+                  >
+                    Delete Ticket
+                  </button>
+                </div>
               </div>
-              <p className="text-slate-600 leading-relaxed">{ticket.description}</p>
-              <div className="flex gap-3 pt-2">
-                <button 
-                  onClick={() => handleResolveTicket(ticket.id)}
-                  className="px-4 py-2 text-sm font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded-lg transition-colors"
-                >
-                  Mark as Resolved
-                </button>
-                <button 
-                  onClick={() => handleDeleteTicket(ticket.id)}
-                  className="px-4 py-2 text-sm font-semibold text-rose-700 bg-rose-50 hover:bg-rose-100 rounded-lg transition-colors"
-                >
-                  Delete Ticket
-                </button>
-              </div>
-            </div>
-          ))}
+            ))
+          )}
         </div>
 
       </div>
