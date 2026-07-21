@@ -21,7 +21,7 @@ export default function Dashboard() {
       // await axios.post('/api/tickets', { title, category, description });
 
       // 2. The NEW Event Trigger: Send the WhatsApp Alert to the Admin
-      await axios.post('http://localhost:5000/api/admin/notify', {
+      await axios.post('https://apartment-management-platform.onrender.com/api/tickets', {
         sendTo: 'Admin', // Routing to admin
         notificationTitle: `New Issue: ${title}`,
         message: `Category: ${category}\nDetails: ${description}`
