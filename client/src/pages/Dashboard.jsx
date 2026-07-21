@@ -34,6 +34,46 @@ export default function Dashboard() {
           }
         }
       );
+      const handleResolveTicket = async (ticketId) => {
+    try {
+      const token = localStorage.getItem('token');
+      
+      // Update the ticket on the backend
+      await axios.put(`https://apartment-management-platform.onrender.com/api/tickets/${ticketId}`, 
+        { status: 'Resolved' },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      
+      // Update the ticket visually on the screen
+      setTickets(tickets.map(ticket => 
+        ticket.id === ticketId ? { ...ticket, status: 'Resolved' } : ticket
+      ));
+      
+      toast.success('Ticket marked as resolved!');
+    } catch (error) {
+      console.error(error);
+      toast.error('Failed to resolve ticket.');
+    }
+  };
+
+  const handleDeleteTicket = async (ticketId) => {
+    try {
+      const token = localStorage.getItem('token');
+      
+      // Delete the ticket from the backend
+      await axios.delete(`https://apartment-management-platform.onrender.com/api/tickets/${ticketId}`, 
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      
+      // Remove the ticket visually from the screen
+      setTickets(tickets.filter(ticket => ticket.id !== ticketId));
+      
+      toast.success('Ticket deleted!');
+    } catch (error) {
+      console.error(error);
+      toast.error('Failed to delete ticket.');
+    }
+  };
 
       toast.success('Ticket submitted and Admin notified!', { id: toastId });
       
@@ -120,13 +160,19 @@ export default function Dashboard() {
               </div>
               <p className="text-slate-600 leading-relaxed">{ticket.description}</p>
               <div className="flex gap-3 pt-2">
-                <button className="px-4 py-2 text-sm font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded-lg transition-colors">
-                  Mark as Resolved
-                </button>
-                <button className="px-4 py-2 text-sm font-semibold text-rose-700 bg-rose-50 hover:bg-rose-100 rounded-lg transition-colors">
-                  Delete Ticket
-                </button>
-              </div>
+              <button 
+                onClick={() => handleResolveTicket(ticket.id)}
+                className="px-4 py-2 text-sm font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded-lg transition-colors"
+              >
+                Mark as Resolved
+              </button>
+              <button 
+                onClick={() => handleDeleteTicket(ticket.id)}
+                className="px-4 py-2 text-sm font-semibold text-rose-700 bg-rose-50 hover:bg-rose-100 rounded-lg transition-colors"
+              >
+                Delete Ticket
+              </button>
+            </div>
             </div>
           ))}
         </div>
