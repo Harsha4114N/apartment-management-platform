@@ -36,6 +36,10 @@ const ticketSchema = new mongoose.Schema({
         enum: ['Low', 'Medium', 'High', 'Emergency'],
         default: 'Low'
     }
+    flatNumber: {
+    type: String,
+    required: true
+    }
 }, { timestamps: true });
 
 module.exports = mongoose.model('Ticket', ticketSchema);
