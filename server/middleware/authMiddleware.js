@@ -1,23 +1,25 @@
 const jwt = require('jsonwebtoken');
 
 module.exports = function(req, res, next) {
-    // 1. Extract the token from the request header
-    // We expect the frontend to send the token in a header called 'x-auth-token'
-    const token = req.header('x-auth-token');
+    // 1. Get the Authorization header sent by the frontend
+    const authHeader = req.header('Authorization');
 
-    // 2. If there is no token, immediately reject the request
+    // 2. The header format is "Bearer <token>". We split it by the space and grab the 2nd part (the actual token)
+    const token = authHeader && authHeader.split(' ')[1];
+
+    // 3. If there is no token, immediately reject the request
     if (!token) {
         return res.status(401).json({ message: "Access denied. No authentication token provided." });
     }
 
-    // 3. Verify the token's cryptographic signature
+    // 4. Verify the token's cryptographic signature
     try {
         const decoded = jwt.verify(token, process.env.JWT_SECRET);
         
-        // 4. Attach the decoded user payload (id and role) to the request object
+        // 5. Attach the decoded user payload (id and role) to the request object
         req.user = decoded;
         
-        // 5. Pass control to the next function (the actual route logic)
+        // 6. Pass control to the next function (the actual route logic)
         next();
     } catch (err) {
         res.status(401).json({ message: "Invalid or expired token." });
