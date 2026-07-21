@@ -16,7 +16,7 @@ export default function Register() {
 
     try {
       // Map the frontend state to the exact keys the backend expects
-      await axios.post('http://localhost:5000/api/auth/register', { 
+      await axios.post('https://apartment-management-platform.onrender.com/api/auth/register', { 
         fullName: name, 
         email: email, 
         flatNumber: apartment, 
