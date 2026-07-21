@@ -30,11 +30,12 @@ export default function Dashboard() {
     try {
       const token = localStorage.getItem('token'); 
 
+      // 2. Send the exact fields MongoDB is asking for
       await axios.post('https://apartment-management-platform.onrender.com/api/tickets', 
         {
-          sendTo: 'Admin', 
-          notificationTitle: `New Issue: ${title}`,
-          message: `Category: ${category}\nDetails: ${description}`
+          title: title,
+          category: category,
+          description: description
         },
         {
           headers: {
