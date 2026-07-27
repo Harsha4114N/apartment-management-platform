@@ -124,37 +124,6 @@ export default function Dashboard() {
     }
   };
 
-  const handleResolveTicket = async (ticketId) => {
-    try {
-      const token = localStorage.getItem('token');
-      await axios.put(`${API_URL}/tickets/${ticketId}`,
-        { status: 'Resolved' },
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-      setTickets(tickets.map(ticket =>
-        ticket._id === ticketId ? { ...ticket, status: 'Resolved' } : ticket
-      ));
-      toast.success('Ticket marked as resolved!');
-    } catch (error) {
-      console.error(error);
-      toast.error('Failed to resolve ticket.');
-    }
-  };
-
-  const handleDeleteTicket = async (ticketId) => {
-    try {
-      const token = localStorage.getItem('token');
-      await axios.delete(`${API_URL}/tickets/${ticketId}`,
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-      setTickets(tickets.filter(ticket => ticket._id !== ticketId));
-      toast.success('Ticket deleted!');
-    } catch (error) {
-      console.error(error);
-      toast.error('Failed to delete ticket.');
-    }
-  };
-
   // ══════════════════════════════════════════════════
   //  RAZORPAY PAYMENT HANDLER
   // ══════════════════════════════════════════════════
@@ -383,21 +352,23 @@ export default function Dashboard() {
                       </div>
                     )}
 
-                    <div className="flex gap-3 pt-4">
-                      {ticket.status !== 'Resolved' && (
-                        <button
-                          onClick={() => handleResolveTicket(ticket._id)}
-                          className="px-4 py-2 text-sm font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded-lg transition-colors"
-                        >
-                          Mark as Resolved
-                        </button>
+                    {/* Status progress indicator — Residents can only view, not take action */}
+                    <div className="flex items-center gap-2 pt-4">
+                      {ticket.status === 'Resolved' && (
+                        <span className="flex items-center gap-1.5 text-emerald-600 text-sm font-semibold">
+                          <span>✅</span> Resolved — Our team has addressed this issue.
+                        </span>
                       )}
-                      <button
-                        onClick={() => handleDeleteTicket(ticket._id)}
-                        className="px-4 py-2 text-sm font-semibold text-rose-700 bg-rose-50 hover:bg-rose-100 rounded-lg transition-colors"
-                      >
-                        Delete Ticket
-                      </button>
+                      {ticket.status === 'In-Progress' && (
+                        <span className="flex items-center gap-1.5 text-blue-600 text-sm font-semibold">
+                          <span>🔧</span> In Progress — Our team is working on this.
+                        </span>
+                      )}
+                      {ticket.status === 'Open' && (
+                        <span className="flex items-center gap-1.5 text-amber-600 text-sm font-semibold">
+                          <span>⏳</span> Open — Awaiting review by our team.
+                        </span>
+                      )}
                     </div>
                   </div>
                 ))

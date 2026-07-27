@@ -55,11 +55,15 @@ async function sendWhatsApp(body, options = {}) {
     console.log(`WhatsApp: Message sent successfully to ${recipient}`);
     return true;
   } catch (error) {
-    // Non-blocking: log the error but DO NOT throw or crash the request
-    console.error('WhatsApp Notification Error:', error.message);
-    if (error.stack && process.env.NODE_ENV !== 'production') {
-        console.error('WhatsApp Notification Stack:', error.stack);
-    }
+    // Non-blocking: log the error but DO NOT throw or crash the request.
+    // Expose ALL error details so failures are visible in production logs (Render).
+    console.error('[TWILIO ERROR] Failed to send WhatsApp message:');
+    console.error('  Message:', error.message);
+    console.error('  Code:', error.code);
+    console.error('  Details:', error.details);
+    console.error('  HTTP Status:', error.status);
+    console.error('  More Info:', error.moreInfo);
+    console.error('  Full Error:', JSON.stringify(error, Object.getOwnPropertyNames(error), 2));
     return false;
   }
 }
