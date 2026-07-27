@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import toast from 'react-hot-toast';
+import API_BASE from '../config/api';
 
 export default function Login() {
   const [email, setEmail] = useState('');
@@ -14,16 +15,24 @@ export default function Login() {
 
     try {
       // Validate credentials with the backend
-      const response = await axios.post('https://apartment-management-platform.onrender.com/api/auth/login', { 
+      const response = await axios.post(`${API_BASE}/api/auth/login`, {
         email, 
         password 
       });
 
-      // Save the JWT token so the user stays logged in
+      // Save the JWT token and user data so the user stays logged in
       localStorage.setItem('token', response.data.token);
-      
+      localStorage.setItem('user', JSON.stringify(response.data.user));
+
       toast.success('Welcome back!', { id: toastId });
-      navigate('/dashboard'); // Grant access to the app
+
+      // Role-based redirection
+      const role = response.data.user.role;
+      if (role === 'SuperAdmin' || role === 'Admin') {
+        navigate('/admin');
+      } else {
+        navigate('/dashboard');
+      }
     } catch (error) {
       console.error(error);
       const errorMessage = error.response?.data?.message || 'Invalid email or password.';

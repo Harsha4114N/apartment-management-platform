@@ -1,49 +1,42 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import toast from 'react-hot-toast';
 
 import API_BASE from '../config/api';
 
-export default function Register() {
-  const [name, setName] = useState('');
+export default function RegisterSociety() {
+  const [societyName, setSocietyName] = useState('');
+  const [societyAddress, setSocietyAddress] = useState('');
+  const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
-  const [apartment, setApartment] = useState('');
+  const [flatNumber, setFlatNumber] = useState('');
   const [password, setPassword] = useState('');
-  const [societyId, setSocietyId] = useState('');
-  const [societies, setSocieties] = useState([]);
   const navigate = useNavigate();
 
-  useEffect(() => {
-    const fetchSocieties = async () => {
-      try {
-        const response = await axios.get(`${API_BASE}/api/societies`);
-        setSocieties(response.data);
-      } catch (error) {
-        console.error('Failed to load societies:', error);
-      }
-    };
-    fetchSocieties();
-  }, []);
-
-  const handleRegister = async (e) => {
+  const handleRegisterSociety = async (e) => {
     e.preventDefault();
-    const toastId = toast.loading('Creating account...');
+    const toastId = toast.loading('Creating society and admin account...');
 
     try {
-      await axios.post(`${API_BASE}/api/auth/register`, { 
-        fullName: name, 
-        email, 
-        flatNumber: apartment, 
-        password,
-        societyId
+      await axios.post(`${API_BASE}/api/societies/register`, {
+        societyName,
+        societyAddress,
+        fullName,
+        email,
+        flatNumber,
+        password
       });
 
-      toast.success('Account created successfully!', { id: toastId });
-      navigate('/login'); 
+      toast.success('Society registered! You can now log in as admin.', { id: toastId });
+      navigate('/login');
     } catch (error) {
       console.error(error);
-      const errorMessage = error.response?.data?.message || 'Failed to create account.';
+      const errorMessage =
+        error.response?.data?.message ||
+        error.response?.data?.error ||
+        error.message ||
+        'Failed to register society.';
       toast.error(errorMessage, { id: toastId });
     }
   };
@@ -53,35 +46,45 @@ export default function Register() {
       <div className="max-w-md w-full bg-white p-8 rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-slate-100">
         
         <div className="text-center mb-8">
-          <h1 className="text-2xl font-bold text-slate-800 tracking-tight mb-2">Create Account</h1>
-          <p className="text-slate-500 text-sm">Join your apartment society</p>
+          <h1 className="text-2xl font-bold text-slate-800 tracking-tight mb-2">Register Society</h1>
+          <p className="text-slate-500 text-sm">Set up your building and admin account</p>
         </div>
 
-        <form onSubmit={handleRegister} className="space-y-4">
+        <form onSubmit={handleRegisterSociety} className="space-y-4">
           <div>
-            <label className="block text-sm font-semibold text-slate-700 mb-1.5">Society / Building</label>
-            <select
-              value={societyId}
-              onChange={(e) => setSocietyId(e.target.value)}
+            <label className="block text-sm font-semibold text-slate-700 mb-1.5">Society Name</label>
+            <input
+              type="text"
+              placeholder="Green Valley Apartments"
+              value={societyName}
+              onChange={(e) => setSocietyName(e.target.value)}
               className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 transition-all"
               required
-            >
-              <option value="">Select your building</option>
-              {societies.map((society) => (
-                <option key={society._id} value={society._id}>
-                  {society.name} — {society.address}
-                </option>
-              ))}
-            </select>
+            />
           </div>
+
+          <div>
+            <label className="block text-sm font-semibold text-slate-700 mb-1.5">Address</label>
+            <input
+              type="text"
+              placeholder="123 Main Street, City"
+              value={societyAddress}
+              onChange={(e) => setSocietyAddress(e.target.value)}
+              className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 transition-all"
+              required
+            />
+          </div>
+
+          <hr className="border-slate-100" />
+          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Admin Account</p>
 
           <div>
             <label className="block text-sm font-semibold text-slate-700 mb-1.5">Full Name</label>
             <input
               type="text"
-              placeholder="John Doe"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
+              placeholder="Jane Admin"
+              value={fullName}
+              onChange={(e) => setFullName(e.target.value)}
               className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 transition-all"
               required
             />
@@ -92,7 +95,7 @@ export default function Register() {
               <label className="block text-sm font-semibold text-slate-700 mb-1.5">Email</label>
               <input
                 type="email"
-                placeholder="john@example.com"
+                placeholder="admin@example.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 transition-all"
@@ -100,12 +103,12 @@ export default function Register() {
               />
             </div>
             <div className="col-span-2 sm:col-span-1">
-              <label className="block text-sm font-semibold text-slate-700 mb-1.5">Apt Number</label>
+              <label className="block text-sm font-semibold text-slate-700 mb-1.5">Flat / Office</label>
               <input
                 type="text"
-                placeholder="e.g., 402B"
-                value={apartment}
-                onChange={(e) => setApartment(e.target.value)}
+                placeholder="e.g., Admin Office"
+                value={flatNumber}
+                onChange={(e) => setFlatNumber(e.target.value)}
                 className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 transition-all"
                 required
               />
@@ -128,17 +131,12 @@ export default function Register() {
             type="submit" 
             className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3.5 rounded-xl font-bold tracking-wide shadow-lg shadow-blue-200 transition-all duration-200 hover:-translate-y-0.5 mt-2"
           >
-            Create Account
+            Create Society
           </button>
         </form>
         
-        <div className="mt-6 text-center text-sm text-slate-500 space-y-2">
-          <p>
-            Already have an account? <Link to="/login" className="text-blue-600 font-semibold cursor-pointer hover:underline">Log in</Link>
-          </p>
-          <p>
-            Setting up a new building? <Link to="/register-society" className="text-blue-600 font-semibold cursor-pointer hover:underline">Register your society</Link>
-          </p>
+        <div className="mt-6 text-center text-sm text-slate-500">
+          Already have a society? <Link to="/register" className="text-blue-600 font-semibold cursor-pointer hover:underline">Register as resident</Link>
         </div>
 
       </div>

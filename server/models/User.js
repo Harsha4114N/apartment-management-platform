@@ -1,6 +1,6 @@
 const mongoose = require('mongoose');
 
-const residentSchema = new mongoose.Schema({
+const userSchema = new mongoose.Schema({
     fullName: {
         type: String,
         required: true,
@@ -9,27 +9,33 @@ const residentSchema = new mongoose.Schema({
     email: {
         type: String,
         required: true,
-        unique: true, // Prevents duplicate accounts
+        unique: true,
         lowercase: true
+    },
+    phoneNumber: {
+        type: String,
+        trim: true,
+        default: null
     },
     password: {
         type: String,
         required: true
     },
-    flatNumber: {
-        type: String,
-        required: true
-    },
     role: {
         type: String,
-        enum: ['resident', 'admin', 'security'],
-        default: 'resident'
+        enum: ['SuperAdmin', 'Admin', 'Treasurer', 'Resident'],
+        default: 'Resident'
     },
     societyId: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Society',
         required: true
+    },
+    approvalStatus: {
+        type: String,
+        enum: ['Pending', 'Approved', 'Rejected'],
+        default: 'Pending'
     }
-}, { timestamps: true }); // Automatically adds createdAt and updatedAt fields
+}, { timestamps: true });
 
-module.exports = mongoose.model('Resident', residentSchema);
+module.exports = mongoose.model('User', userSchema);

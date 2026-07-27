@@ -1,75 +1,95 @@
 const express = require('express');
 const router = express.Router();
 const Ticket = require('../models/Ticket');
+const Flat = require('../models/Flat');
 const auth = require('../middleware/authMiddleware');
-const upload = require('../middleware/upload'); 
-const twilio = require('twilio');
-const Resident = require('../models/Resident');
-
-const client = twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN);
+const upload = require('../middleware/upload');
+const User = require('../models/User');
+const { sendWhatsApp } = require('../utils/whatsapp');
 
 // --- CREATE A NEW TICKET (WITH WHATSAPP IMAGE ATTACHMENT) ---
+// The upload middleware handles Cloudinary credential validation, multer errors,
+// file size limits, and format restrictions — returning clean JSON on failure
 router.post('/', auth, upload.single('image'), async (req, res) => {
     try {
         const { title, description, category } = req.body;
+
+        if (!req.user.societyId) {
+            return res.status(403).json({ message: "No society associated with this account." });
+        }
         
         const imageUrl = req.file ? req.file.path : '';
 
-        // 1. Look up the resident in the database using their login token ID
-        const residentInfo = await Resident.findById(req.user.id); 
+        const residentInfo = await User.findById(req.user.id);
         
         if (!residentInfo) {
             return res.status(404).json({ message: "User not found" });
         }
 
-        const userFlatNumber = residentInfo.flatNumber;
+        // Query the Flat collection to find the flat where this user is owner or tenant
+        const flat = await Flat.findOne({
+            societyId: req.user.societyId,
+            $or: [
+                { owner: req.user.id },
+                { currentTenants: req.user.id }
+            ]
+        });
 
-        // 2. Create the ticket including the user's flat number
+        if (!flat || !flat.flatNumber) {
+            return res.status(400).json({ message: "Could not determine flat number for this user. Please contact your administrator." });
+        }
+
+        const userFlatNumber = flat.flatNumber;
+
         const newTicket = new Ticket({
             resident: req.user.id,
+            societyId: req.user.societyId,
             title,
             description,
             category,
-            imageUrl, 
-            flatNumber: userFlatNumber, // <-- Automatically fetched from DB
+            imageUrl,
+            flatNumber: userFlatNumber,
             status: 'Open'
         });
 
         const ticket = await newTicket.save();
+        console.log('Ticket created successfully:', ticket._id);
 
-        // --- NEW TWILIO LOGIC ---
+        // ── WhatsApp Notification (non-blocking) ──
         try {
-            // 3. Build the base message INCLUDING the flat number
-            const messagePayload = {
-                body: `🚨 *New Maintenance Ticket*\n\n*Flat:* ${userFlatNumber}\n*Issue:* ${title}\n*Category:* ${category}\n*Details:* ${description}`,
-                from: 'whatsapp:+14155238886', 
-                to: `whatsapp:${process.env.MY_PHONE_NUMBER}`
-            };
-
-            // 4. If an image was uploaded, attach it to the WhatsApp message!
-            if (imageUrl) {
-                // Twilio requires mediaUrl to be an array
-                messagePayload.mediaUrl = [imageUrl]; 
-            }
-
-            // 5. Send the message
-            await client.messages.create(messagePayload);
-            console.log("WhatsApp notification with media sent successfully!");
+            const mediaUrls = imageUrl ? [imageUrl] : undefined;
+            await sendWhatsApp(
+                `🚨 *New Maintenance Ticket*\n\n*Flat:* ${userFlatNumber}\n*Issue:* ${title}\n*Category:* ${category}\n*Details:* ${description}`,
+                { mediaUrls }
+            );
         } catch (twilioErr) {
-            console.error("Failed to send WhatsApp message:", twilioErr.message);
+            console.error('WhatsApp Notification Error:', twilioErr.message);
         }
 
         res.status(201).json(ticket);
     } catch (err) {
-        console.error('Error creating ticket:', err.message);
-        res.status(500).send('Server Error');
+        console.error('Error creating ticket:', err.message || err);
+        if (err.stack && process.env.NODE_ENV !== 'production') {
+            console.error('Ticket creation stack trace:', err.stack);
+        }
+        res.status(500).json({ message: err.message || 'Server error while creating ticket.' });
     }
 });
 
-// --- GET ALL TICKETS ---
+// --- GET ALL TICKETS (scoped to user's society) ---
 router.get('/', auth, async (req, res) => {
     try {
-        const tickets = await Ticket.find({ resident: req.user.id }).sort({ createdAt: -1 });
+        if (!req.user.societyId) {
+            return res.status(403).json({ message: "No society associated with this account." });
+        }
+
+        const query = { societyId: req.user.societyId };
+
+        if (req.user.role === 'resident') {
+            query.resident = req.user.id;
+        }
+
+        const tickets = await Ticket.find(query).sort({ createdAt: -1 });
         res.status(200).json(tickets);
     } catch (err) {
         console.error("Error fetching tickets:", err.message);
@@ -84,6 +104,10 @@ router.delete('/:id', auth, async (req, res) => {
 
         if (!ticket) {
             return res.status(404).json({ msg: 'Ticket not found' });
+        }
+
+        if (ticket.societyId.toString() !== req.user.societyId.toString()) {
+            return res.status(401).json({ msg: 'User not authorized to delete this ticket' });
         }
 
         if (ticket.resident.toString() !== req.user.id) {
@@ -108,6 +132,10 @@ router.put('/:id', auth, async (req, res) => {
 
         if (!ticket) {
             return res.status(404).json({ msg: 'Ticket not found' });
+        }
+
+        if (ticket.societyId.toString() !== req.user.societyId.toString()) {
+            return res.status(401).json({ msg: 'User not authorized to update this ticket' });
         }
 
         if (ticket.resident.toString() !== req.user.id) {

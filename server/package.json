@@ -20,6 +20,8 @@
     "mongoose": "^9.7.4",
     "multer": "^2.2.0",
     "multer-storage-cloudinary": "^4.0.0",
+    "pdfkit": "^0.19.1",
+    "razorpay": "^2.9.8",
     "twilio": "^6.0.2"
   }
 }

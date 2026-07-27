@@ -37,8 +37,13 @@ const ticketSchema = new mongoose.Schema({
         default: 'Low'
     },
     flatNumber: {
-    type: String,
-    required: true
+        type: String,
+        required: true
+    },
+    societyId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Society',
+        required: true
     }
 }, { timestamps: true });
 
