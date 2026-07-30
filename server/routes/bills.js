@@ -4,7 +4,7 @@ const Flat = require('../models/Flat');
 const User = require('../models/User');
 const Society = require('../models/Society');
 const authMiddleware = require('../middleware/authMiddleware');
-const { sendWhatsApp } = require('../utils/whatsapp');
+const { sendPushNotification } = require('../utils/webPush');
 
 const router = express.Router();
 
@@ -51,40 +51,30 @@ router.post('/create-bill', async (req, res) => {
 
         await bill.save();
 
-        // ── WhatsApp Notification to Resident ──
+        // ── Web Push Notification to Resident ──
         try {
-            // Find the flat owner or tenant to get their phone number
             const residentUser = await User.findOne({
                 societyId: req.user.societyId,
                 $or: [
                     { _id: flat.owner },
                     { _id: { $in: flat.currentTenants || [] } }
                 ]
-            }).select('fullName phoneNumber');
+            }).select('pushSubscriptions');
 
-            const society = await Society.findById(req.user.societyId).select('name');
-
-            // Fallback: use resident's phone, or fall back to MY_PHONE_NUMBER env for testing
-            const targetPhone = (residentUser && residentUser.phoneNumber) || process.env.MY_PHONE_NUMBER;
-
-            console.log('--- WHATSAPP NOTIFICATION TRIGGERED ---');
-            console.log('Event: Bill Issued');
-            console.log('Target Phone:', targetPhone);
-            console.log('Resident User:', residentUser ? `${residentUser.fullName} (${residentUser.phoneNumber || 'no phone'})` : 'not found');
-            console.log('Flat:', flatNumber, '| Amount:', amount, '| Title:', title);
-
-            if (targetPhone) {
-                const societyName = society ? society.name : 'Your Society';
-                await sendWhatsApp(
-                    `🧾 *New Bill Issued*\n\nSociety: ${societyName}\nFlat: ${flatNumber}\nAmount: ₹${amount}\nTitle: ${title}\nDue Date: ${new Date(dueDate).toLocaleDateString('en-IN')}\n\nPlease log in to your dashboard to make the payment.`,
-                    { to: targetPhone }
+            const subscriptions = (residentUser && residentUser.pushSubscriptions) || [];
+            if (subscriptions.length > 0) {
+                await sendPushNotification(
+                    subscriptions,
+                    '🧾 New Bill Issued',
+                    `Flat ${flatNumber}: ₹${amount} — ${title} (Due: ${new Date(dueDate).toLocaleDateString('en-IN')})`,
+                    '/billing'
                 );
-                console.log('--- WHATSAPP BILL NOTIFICATION SENT ---');
+                console.log('--- PUSH BILL NOTIFICATION SENT ---');
             } else {
-                console.log('WhatsApp: Skipped bill notification — no phone number available');
+                console.log('WebPush: Skipped bill notification — resident has no push subscriptions');
             }
-        } catch (waErr) {
-            console.error('WhatsApp Notification Error:', waErr.message);
+        } catch (pushErr) {
+            console.error('WebPush Notification Error (non-blocking):', pushErr.message);
         }
 
         res.status(201).json({

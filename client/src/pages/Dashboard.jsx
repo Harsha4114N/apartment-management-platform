@@ -1,206 +1,142 @@
-import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState, useEffect, useMemo } from 'react';
 import axios from 'axios';
 import toast from 'react-hot-toast';
+import { io } from 'socket.io-client';
 import API_BASE from '../config/api';
 
 const API_URL = `${API_BASE}/api`;
 
-// ── Razorpay SDK loader (shared with BillingDashboard) ──
-const loadRazorpayScript = () => {
-  return new Promise((resolve, reject) => {
-    if (document.querySelector('script[src="https://checkout.razorpay.com/v1/checkout.js"]')) {
-      resolve(true);
-      return;
-    }
-    const script = document.createElement('script');
-    script.src = 'https://checkout.razorpay.com/v1/checkout.js';
-    script.onload = () => resolve(true);
-    script.onerror = () => reject(new Error('Failed to load Razorpay SDK'));
-    document.body.appendChild(script);
-  });
-};
-
-const TABS = [
-  { key: 'tickets', label: 'Maintenance Tickets' },
-  { key: 'bills',   label: 'My Bills' },
-];
-
 export default function Dashboard() {
-  const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState('tickets');
 
-  // ── Tickets state ──
-  const [title, setTitle] = useState('');
-  const [category, setCategory] = useState('Plumbing');
-  const [description, setDescription] = useState('');
-  const [image, setImage] = useState(null);
-  const [tickets, setTickets] = useState([]);
+  // ── Events, Announcements & Visitors state ──
+  const [events, setEvents] = useState([]);
+  const [announcements, setAnnouncements] = useState([]);
+  const [visitors, setVisitors] = useState([]);
 
-  // ── Bills state ──
-  const [bills, setBills] = useState([]);
-  const [processing, setProcessing] = useState(false);
+  // ── Loading state ──
+  const [loading, setLoading] = useState(true);
+
+  // ── Auth headers helper ──
+  const getAuthHeaders = () => {
+    const token = localStorage.getItem('token');
+    return { headers: { Authorization: `Bearer ${token}` } };
+  };
 
   // ══════════════════════════════════════════════════
   //  DATA FETCHING
   // ══════════════════════════════════════════════════
 
-
-  const fetchTickets = async () => {
+  const fetchEvents = async () => {
     try {
       const token = localStorage.getItem('token');
-      if (!token) return;
-
-      const response = await axios.get(`${API_URL}/tickets`, {
-        headers: { Authorization: `Bearer ${token}` }
+      const response = await axios.get(`${API_URL}/events`, {
+        headers: { Authorization: `Bearer ${token}` },
       });
-
-      setTickets(response.data);
+      setEvents(Array.isArray(response.data) ? response.data : []);
     } catch (error) {
-      console.error('Error fetching tickets:', error);
+      console.error('Error fetching events:', error);
     }
   };
 
-  const fetchBills = async () => {
+  const fetchAnnouncements = async () => {
+    try {
+      const response = await axios.get(`${API_URL}/announcements`, getAuthHeaders());
+      setAnnouncements(Array.isArray(response.data) ? response.data : []);
+    } catch (error) {
+      console.error('Error fetching announcements:', error);
+    }
+  };
+
+  const fetchVisitors = async () => {
     try {
       const token = localStorage.getItem('token');
-      if (!token) return;
-
-      const response = await axios.get(`${API_URL}/payments/bills`, {
+      const response = await axios.get(`${API_URL}/visitors`, {
         headers: { Authorization: `Bearer ${token}` },
       });
-      setBills(response.data);
+      setVisitors(Array.isArray(response.data) ? response.data : []);
     } catch (error) {
-      console.error('Error fetching bills:', error);
+      console.error('Error fetching visitors:', error);
     }
   };
 
   /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
-    fetchTickets();
-    fetchBills();
+    const loadAll = async () => {
+      await Promise.allSettled([
+        fetchEvents(),
+        fetchAnnouncements(),
+        fetchVisitors(),
+      ]);
+      setLoading(false);
+    };
+    loadAll();
+
+    // ── Real-time socket listener for new announcements (no race condition) ──
+    const socket = io(API_BASE, {
+      transports: ['websocket', 'polling'],
+    });
+
+    const joinSociety = () => {
+      const storedUser = JSON.parse(localStorage.getItem('user') || '{}');
+      if (storedUser.societyId) {
+        socket.emit('join-society', storedUser.societyId);
+        console.log('[Socket Dashboard] join-society emitted:', storedUser.societyId);
+      }
+    };
+
+    // Wait for confirmed connection before joining the room
+    socket.on('connect', () => {
+      console.log('[Socket Dashboard] Connected:', socket.id);
+      joinSociety();
+    });
+
+    // Re-join room if the server restarts / socket reconnects
+    socket.on('reconnect', () => {
+      console.log('[Socket Dashboard] Reconnected:', socket.id);
+      joinSociety();
+    });
+
+    socket.on('new_announcement', (data) => {
+      console.log('[Socket Dashboard] new_announcement received:', data?.title, data?._id);
+      setAnnouncements((prev) => {
+        // Guard against duplicates (fetch + socket arriving at the same time)
+        if (prev.some((a) => a._id === data._id)) return prev;
+        return [data, ...prev];
+      });
+    });
+
+    return () => {
+      console.log('[Socket Dashboard] Cleaning up listeners...');
+      socket.off('connect');
+      socket.off('reconnect');
+      socket.off('new_announcement');
+      socket.disconnect();
+    };
   }, []);
   /* eslint-enable react-hooks/set-state-in-effect */
 
   // ══════════════════════════════════════════════════
-  //  TICKET HANDLERS
+  //  COMPUTED METRICS
   // ══════════════════════════════════════════════════
 
-  const handleSubmitTicket = async (e) => {
-    e.preventDefault();
-    const toastId = toast.loading('Submitting ticket with image (this may take a few seconds)...');
-
-    try {
-      const token = localStorage.getItem('token');
-
-      const formData = new FormData();
-      formData.append('title', title);
-      formData.append('category', category);
-      formData.append('description', description);
-      if (image) {
-        formData.append('image', image);
-      }
-
-      await axios.post(`${API_URL}/tickets`, formData, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'multipart/form-data'
-        }
-      });
-
-      toast.success('Ticket submitted successfully!', { id: toastId });
-
-      setTitle('');
-      setDescription('');
-      setImage(null);
-      document.getElementById('file-upload').value = '';
-
-      fetchTickets();
-    } catch (error) {
-      console.error('Ticket submission failed — full error:', error);
-      console.error('Ticket submission failed — server response:', error.response?.data);
-      const serverMsg = error.response?.data?.message || error.message || 'Failed to submit ticket. Please try again.';
-      toast.error(serverMsg, { id: toastId });
-    }
-  };
+  const metrics = useMemo(() => ({
+    visitorsToday: visitors.filter((v) => {
+      const today = new Date();
+      const vDate = new Date(v.createdAt || v.expectedDate);
+      return vDate.toDateString() === today.toDateString();
+    }).length,
+    upcomingEvents: events.filter((e) => new Date(e.date) >= new Date()).length,
+  }), [visitors, events]);
 
   // ══════════════════════════════════════════════════
-  //  RAZORPAY PAYMENT HANDLER
+  //  CATEGORY STYLES FOR ANNOUNCEMENTS
   // ══════════════════════════════════════════════════
 
-  const handlePayment = async (billId, billAmount) => {
-    const toastId = toast.loading('Initializing payment...');
-    setProcessing(true);
-
-    try {
-      // Step 1: Dynamically load the Razorpay checkout script
-      const scriptLoaded = await loadRazorpayScript();
-      if (!scriptLoaded) {
-        toast.error('Failed to load Razorpay SDK. Please try again.', { id: toastId });
-        setProcessing(false);
-        return;
-      }
-
-      // Step 2: Call POST /api/payments/create-order to get the order_id
-      const token = localStorage.getItem('token');
-      const orderResponse = await axios.post(
-        `${API_URL}/payments/create-order`,
-        { amount: billAmount, currency: 'INR', billId },
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-
-      const { id: order_id, amount: orderAmount, currency } = orderResponse.data;
-
-      // Step 3: Initialize window.Razorpay with order details
-      const options = {
-        key: import.meta.env.VITE_RAZORPAY_KEY_ID || 'rzp_test_placeholder',
-        amount: orderAmount,
-        currency,
-        name: 'Apartment Management',
-        description: `Payment for Bill ${billId}`,
-        order_id,
-        handler: async function (response) {
-          // Step 4: Send response data to POST /api/payments/verify-payment
-          try {
-            const verifyResponse = await axios.post(
-              `${API_URL}/payments/verify-payment`,
-              {
-                razorpay_order_id: response.razorpay_order_id,
-                razorpay_payment_id: response.razorpay_payment_id,
-                razorpay_signature: response.razorpay_signature,
-                billId,
-              },
-              { headers: { Authorization: `Bearer ${token}` } }
-            );
-
-            toast.success(verifyResponse.data.message || 'Payment successful!', { id: toastId });
-            setProcessing(false);
-            fetchBills();
-          } catch (verifyError) {
-            console.error('Payment verification failed:', verifyError);
-            toast.error('Payment verification failed. Please contact support.', { id: toastId });
-            setProcessing(false);
-          }
-        },
-        prefill: { name: '', email: '', contact: '' },
-        theme: { color: '#4f46e5' },
-        modal: {
-          ondismiss: function () {
-            toast.error('Payment cancelled.', { id: toastId });
-            setProcessing(false);
-          },
-        },
-      };
-
-      const razorpay = new window.Razorpay(options);
-      razorpay.open();
-    } catch (error) {
-      console.error('Payment initiation failed — full error:', error);
-      console.error('Payment initiation failed — server response:', error.response?.data);
-      const serverMsg = error.response?.data?.message || error.message || 'Failed to initiate payment. Please try again.';
-      toast.error(serverMsg, { id: toastId });
-      setProcessing(false);
-    }
+  const announcementStyles = {
+    Emergency: 'bg-rose-100 text-rose-700 border-l-4 border-l-rose-500',
+    Notice: 'bg-blue-100 text-blue-700 border-l-4 border-l-blue-500',
+    Maintenance: 'bg-amber-100 text-amber-700 border-l-4 border-l-amber-500',
+    General: 'bg-slate-100 text-slate-600 border-l-4 border-l-slate-400',
   };
 
   // ══════════════════════════════════════════════════
@@ -210,11 +146,8 @@ export default function Dashboard() {
   const handleLogout = () => {
     localStorage.removeItem('token');
     toast.success('Logged out successfully');
-    navigate('/');
+    window.location.href = '/login';
   };
-
-  const inputClass =
-    'w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-700 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 transition-all';
 
   // ══════════════════════════════════════════════════
   //  RENDER
@@ -224,231 +157,164 @@ export default function Dashboard() {
     <div className="min-h-screen bg-slate-50 p-6 md:p-12 font-sans">
 
       {/* ── Header ── */}
-      <div className="max-w-4xl mx-auto flex justify-between items-center mb-8">
-        <h1 className="text-2xl font-bold text-slate-800 tracking-tight">Resident Dashboard</h1>
+      <div className="max-w-6xl mx-auto flex justify-between items-center mb-8">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-800 tracking-tight">Resident Dashboard</h1>
+          <p className="text-slate-500 text-sm mt-0.5">Welcome back! Here's what's happening in your society.</p>
+        </div>
         <button
           onClick={handleLogout}
-          className="bg-rose-500 hover:bg-rose-600 text-white px-5 py-2 rounded-xl font-medium transition-colors shadow-md shadow-rose-200"
+          className="bg-rose-500 hover:bg-rose-600 text-white px-5 py-2 rounded-xl font-medium transition-colors shadow-md shadow-rose-200 text-sm"
         >
           Logout
         </button>
       </div>
 
-      {/* ── Tabs ── */}
-      <div className="max-w-4xl mx-auto mb-8">
-        <div className="flex gap-1 bg-white p-1 rounded-xl shadow-sm border border-slate-200">
-          {TABS.map((tab) => (
-            <button
-              key={tab.key}
-              onClick={() => setActiveTab(tab.key)}
-              className={`flex-1 py-2.5 px-4 rounded-lg text-sm font-semibold transition-all duration-200 ${
-                activeTab === tab.key
-                  ? 'bg-indigo-600 text-white shadow-md'
-                  : 'text-slate-500 hover:text-slate-700 hover:bg-slate-50'
-              }`}
-            >
-              {tab.label}
-              {tab.key === 'bills' && bills.length > 0 && (
-                <span className="ml-2 bg-indigo-500/20 text-indigo-700 text-[10px] px-1.5 py-0.5 rounded-full">
-                  {bills.length}
-                </span>
-              )}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      <div className="max-w-4xl mx-auto space-y-8">
-
-        {/* ═══════════════════════════════════════════ */}
-        {/* TAB: Maintenance Tickets                   */}
-        {/* ═══════════════════════════════════════════ */}
-        {activeTab === 'tickets' && (
-          <>
-            {/* ── Report Issue Form ── */}
-            <div className="bg-white p-8 rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-slate-100">
-              <h2 className="text-xl font-bold text-slate-800 mb-6 text-center">Report an Issue</h2>
-
-              <form onSubmit={handleSubmitTicket} className="space-y-5">
-                <div>
-                  <input
-                    type="text"
-                    placeholder="Issue Title (e.g., Leaking Faucet)"
-                    value={title}
-                    onChange={(e) => setTitle(e.target.value)}
-                    className={inputClass}
-                    required
-                  />
-                </div>
-
-                <div>
-                  <select
-                    value={category}
-                    onChange={(e) => setCategory(e.target.value)}
-                    className={`${inputClass} cursor-pointer`}
-                  >
-                    <option value="Plumbing">Plumbing</option>
-                    <option value="Electrical">Electrical</option>
-                    <option value="Carpentry">Carpentry</option>
-                    <option value="Security">Security</option>
-                    <option value="General">General</option>
-                  </select>
-                </div>
-
-                <div>
-                  <textarea
-                    rows="4"
-                    placeholder="Describe the issue in detail..."
-                    value={description}
-                    onChange={(e) => setDescription(e.target.value)}
-                    className={`${inputClass} resize-y`}
-                    required
-                  ></textarea>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-2">Attach a Photo (Optional)</label>
-                  <input
-                    id="file-upload"
-                    type="file"
-                    accept="image/*"
-                    onChange={(e) => setImage(e.target.files[0])}
-                    className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl text-slate-700 focus:outline-none transition-all file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100 cursor-pointer"
-                  />
-                </div>
-
-                <button
-                  type="submit"
-                  className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3.5 rounded-xl font-bold tracking-wide shadow-lg shadow-blue-200 transition-all duration-200 hover:-translate-y-0.5 active:translate-y-0"
-                >
-                  Submit Ticket
-                </button>
-              </form>
-            </div>
-
-            {/* ── Tickets List ── */}
-            <div className="bg-white p-8 rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-slate-100 border-l-4 border-l-blue-600">
-              {tickets.length === 0 ? (
-                <p className="text-slate-500 text-center py-4">No tickets found. Submit one above!</p>
-              ) : (
-                tickets.map(ticket => (
-                  <div key={ticket._id} className="space-y-3 mb-8 pb-8 border-b border-slate-100 last:border-0 last:mb-0 last:pb-0">
-                    <div className="flex items-center gap-3">
-                      <h3 className="text-lg font-bold text-slate-800">{ticket.title}</h3>
-                      <span className={`px-2.5 py-1 text-xs font-semibold rounded-md uppercase tracking-wider ${ticket.status === 'Resolved' ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>
-                        ({ticket.status || 'Open'})
-                      </span>
-                    </div>
-                    <p className="text-sm font-semibold text-indigo-600">{ticket.category}</p>
-                    <p className="text-slate-600 leading-relaxed">{ticket.description}</p>
-
-                    {ticket.imageUrl && (
-                      <div className="mt-4">
-                        <img
-                          src={ticket.imageUrl}
-                          alt="Ticket issue"
-                          className="max-w-full h-48 md:h-64 object-cover rounded-xl border border-slate-200 shadow-sm"
-                        />
-                      </div>
-                    )}
-
-                    {/* Status progress indicator — Residents can only view, not take action */}
-                    <div className="flex items-center gap-2 pt-4">
-                      {ticket.status === 'Resolved' && (
-                        <span className="flex items-center gap-1.5 text-emerald-600 text-sm font-semibold">
-                          <span>✅</span> Resolved — Our team has addressed this issue.
-                        </span>
-                      )}
-                      {ticket.status === 'In-Progress' && (
-                        <span className="flex items-center gap-1.5 text-blue-600 text-sm font-semibold">
-                          <span>🔧</span> In Progress — Our team is working on this.
-                        </span>
-                      )}
-                      {ticket.status === 'Open' && (
-                        <span className="flex items-center gap-1.5 text-amber-600 text-sm font-semibold">
-                          <span>⏳</span> Open — Awaiting review by our team.
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
-          </>
-        )}
-
-        {/* ═══════════════════════════════════════════ */}
-        {/* TAB: My Bills                              */}
-        {/* ═══════════════════════════════════════════ */}
-        {activeTab === 'bills' && (
-          <div className="bg-white p-8 rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-slate-100">
-            <h2 className="text-xl font-bold text-slate-800 mb-6">Your Bills</h2>
-
-            {bills.length === 0 ? (
-              <div className="text-center py-12">
-                <div className="text-4xl mb-3">📋</div>
-                <p className="text-slate-500 font-medium">No bills found. You're all clear!</p>
-              </div>
-            ) : (
-              bills.map((bill) => (
-                <div
-                  key={bill._id}
-                  className="space-y-3 mb-6 pb-6 border-b border-slate-100 last:border-0 last:mb-0 last:pb-0"
-                >
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <h3 className="text-lg font-bold text-slate-800">{bill.title || 'Maintenance Bill'}</h3>
-                      <span
-                        className={`px-2.5 py-1 text-xs font-semibold rounded-md uppercase tracking-wider ${
-                          bill.status === 'Paid'
-                            ? 'bg-emerald-100 text-emerald-700'
-                            : 'bg-amber-100 text-amber-700'
-                        }`}
-                      >
-                        {bill.status}
-                      </span>
-                    </div>
-                    <p className="text-lg font-bold text-indigo-600">₹{bill.amount}</p>
-                  </div>
-
-                  <p className="text-sm text-slate-500">
-                    Due: <span className="font-semibold text-slate-700">{new Date(bill.dueDate).toLocaleDateString()}</span>
-                  </p>
-
-                  {bill.status === 'Pending' && (
-                    <button
-                      onClick={() => handlePayment(bill._id, bill.amount)}
-                      disabled={processing}
-                      className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-slate-400 disabled:cursor-not-allowed text-white py-3 rounded-xl font-bold tracking-wide shadow-lg shadow-blue-200 transition-all duration-200 hover:-translate-y-0.5 active:translate-y-0"
-                    >
-                      {processing ? 'Processing...' : `Pay ₹${bill.amount}`}
-                    </button>
-                  )}
-
-                  {bill.status === 'Paid' && (
-                    <div className="flex flex-col gap-2">
-                      <div className="flex items-center gap-2 text-emerald-600 text-sm font-semibold">
-                        <span>✅</span>
-                        <span>Paid</span>
-                      </div>
-                      {bill.receiptUrl && (
-                        <a
-                          href={`${API_BASE}${bill.receiptUrl}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="block w-full text-center bg-emerald-600 hover:bg-emerald-700 text-white py-3 rounded-xl font-bold tracking-wide shadow-lg shadow-emerald-200 transition-all duration-200 hover:-translate-y-0.5 active:translate-y-0 no-underline"
-                        >
-                          📄 Download Receipt
-                        </a>
-                      )}
-                    </div>
-                  )}
-                </div>
-              ))
-            )}
+      {/* ═══════════════════════════════════════════════ */}
+      {/*  METRIC CARDS GRID                             */}
+      {/* ═══════════════════════════════════════════════ */}
+      {loading ? (
+        <div className="max-w-6xl mx-auto mb-8 flex items-center justify-center py-20">
+          <div className="flex flex-col items-center gap-4">
+            <div className="w-10 h-10 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
+            <p className="text-slate-400 text-sm font-medium">Loading your dashboard...</p>
           </div>
-        )}
-      </div>
+        </div>
+      ) : (
+        <>
+          <div className="max-w-6xl mx-auto grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
+            {/* ── Metric: Visitors Today ── */}
+            <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 flex items-center gap-6">
+              <div className="w-12 h-12 bg-indigo-50 rounded-2xl flex items-center justify-center text-2xl shrink-0">
+                🚶
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-slate-500">Visitors Today</p>
+                <p className="text-2xl font-extrabold text-slate-800 mt-0.5">{metrics.visitorsToday}</p>
+              </div>
+            </div>
+
+            {/* ── Metric: Upcoming Events ── */}
+            <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 flex items-center gap-6">
+              <div className="w-12 h-12 bg-orange-50 rounded-2xl flex items-center justify-center text-2xl shrink-0">
+                🎉
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-slate-500">Upcoming Events</p>
+                <p className="text-2xl font-extrabold text-slate-800 mt-0.5">{metrics.upcomingEvents}</p>
+              </div>
+            </div>
+
+            {/* ── Metric: Announcements ── */}
+            <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 flex items-center gap-6">
+              <div className="w-12 h-12 bg-amber-50 rounded-2xl flex items-center justify-center text-2xl shrink-0">
+                📢
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-slate-500">Announcements</p>
+                <p className="text-2xl font-extrabold text-slate-800 mt-0.5">{announcements.length}</p>
+              </div>
+            </div>
+          </div>
+
+          {/* ═══════════════════════════════════════════════ */}
+          {/*  SPLIT LAYOUT: EVENTS + ANNOUNCEMENTS           */}
+          {/* ═══════════════════════════════════════════════ */}
+          <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+
+            {/* ── LEFT: Upcoming Events Feed ── */}
+            <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+              <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between">
+                <h2 className="text-base font-bold text-slate-800">📅 Upcoming Events</h2>
+                <span className="text-xs text-slate-400">{events.length} upcoming</span>
+              </div>
+              <div className="px-6 py-4 space-y-4">
+                {events.length === 0 ? (
+                  <p className="text-slate-400 text-sm text-center py-6">No upcoming events.</p>
+                ) : (
+                  events.map((evt) => (
+                    <div
+                      key={evt._id}
+                      className="flex gap-4 p-4 bg-slate-50 rounded-xl border border-slate-100 hover:border-slate-200 transition-all"
+                    >
+                      {/* Date Badge */}
+                      <div className="shrink-0 w-14 h-14 rounded-xl bg-indigo-100 flex flex-col items-center justify-center text-center shadow-sm">
+                        <span className="text-xs font-bold text-indigo-600 uppercase leading-tight">
+                          {new Date(evt.date).toLocaleDateString('en-IN', { month: 'short' })}
+                        </span>
+                        <span className="text-lg font-extrabold text-indigo-800 leading-tight">
+                          {new Date(evt.date).getDate()}
+                        </span>
+                      </div>
+
+                      {/* Event Info */}
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-bold text-slate-800 truncate">{evt.title}</p>
+                        <p className="text-xs text-slate-500 mt-0.5">
+                          {evt.time} · {evt.location}
+                        </p>
+                        <div className="flex items-center gap-2 mt-2">
+                          <div className="flex-1 h-1.5 bg-slate-200 rounded-full overflow-hidden">
+                            <div
+                              className={`h-full rounded-full transition-all ${
+                                evt.rsvpCount / evt.maxCapacity >= 0.9
+                                  ? 'bg-rose-500'
+                                  : evt.rsvpCount / evt.maxCapacity >= 0.7
+                                  ? 'bg-amber-500'
+                                  : 'bg-emerald-500'
+                              }`}
+                              style={{ width: `${(evt.rsvpCount / evt.maxCapacity) * 100}%` }}
+                            />
+                          </div>
+                          <span className="text-[11px] font-semibold text-slate-500 shrink-0">
+                            {evt.rsvpCount}/{evt.maxCapacity}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+
+            {/* ── RIGHT: Recent Announcements Feed ── */}
+            <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+              <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between">
+                <h2 className="text-base font-bold text-slate-800">📢 Recent Announcements</h2>
+                <span className="text-xs text-slate-400">{announcements.length} updates</span>
+              </div>
+              <div className="px-6 py-4 space-y-3">
+                {announcements.length === 0 ? (
+                  <p className="text-slate-400 text-sm text-center py-6">No announcements yet.</p>
+                ) : (
+                  announcements.map((ann) => (
+                    <div
+                      key={ann._id}
+                      className={`p-4 rounded-xl bg-slate-50 border border-slate-100 transition-all ${
+                        announcementStyles[ann.category] || 'border-slate-100'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2 mb-1.5">
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wider bg-white bg-opacity-70 shadow-sm">
+                          {ann.category}
+                        </span>
+                        <span className="text-[11px] text-slate-400">
+                          {new Date(ann.createdAt).toLocaleDateString('en-IN', {
+                            day: 'numeric',
+                            month: 'short',
+                          })}
+                        </span>
+                      </div>
+                      <p className="text-sm font-bold text-slate-800 mb-0.5">{ann.title}</p>
+                      <p className="text-xs text-slate-500 leading-relaxed line-clamp-2">{ann.message}</p>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 }

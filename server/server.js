@@ -3,6 +3,7 @@ const dns = require('dns');
 dns.setServers(['8.8.8.8', '1.1.1.1']);
 // ------------------------
 
+const http = require('http');
 const express = require('express');
 const path = require('path');
 const twilio = require('twilio');
@@ -16,29 +17,29 @@ const app = express();
 const PORT = process.env.PORT || 5000;
 
 // --- CORS Configuration ---
-// Dynamic origin check: accepts production CLIENT_URL or falls back to localhost
 const allowedOrigins = [
     process.env.CLIENT_URL,
     'http://localhost:5173',
     'http://localhost:3000'
 ].filter(Boolean);
 
-app.use(cors({
+const corsOptions = {
     origin: (origin, callback) => {
-        // Allow requests with no origin (e.g., server-to-server, mobile apps, curl)
+        // Allow server-to-server / non-browser requests with no origin
         if (!origin) return callback(null, true);
-        if (allowedOrigins.includes(origin)) {
-            return callback(null, true);
-        }
-        // In development, allow all origins
-        if (process.env.NODE_ENV !== 'production') {
-            return callback(null, true);
-        }
+        // Allow if origin is explicitly in the allowed list
+        if (allowedOrigins.includes(origin)) return callback(null, true);
+        // In development, allow all origins for easier testing
+        if (process.env.NODE_ENV !== 'production') return callback(null, true);
+        // Production: reject unknown origins
         return callback(new Error('Not allowed by CORS'));
     },
-    credentials: true
-}));
-app.use(express.json());
+    credentials: true,
+};
+
+app.use(cors(corsOptions));
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
 // Serve uploaded receipts as static files
 app.use('/uploads/receipts', express.static(path.join(__dirname, 'uploads', 'receipts')));
@@ -49,7 +50,14 @@ const adminRoutes = require('./routes/admin');
 const billRoutes = require('./routes/bills');
 const ticketRoutes = require('./routes/tickets');
 const societyRoutes = require('./routes/societies');
-const paymentRoutes = require('./routes/razorpay');
+const paymentRoutes = require('./routes/payments');
+const announcementRoutes = require('./routes/announcements');
+const visitorRoutes = require('./routes/visitors');
+const eventRoutes = require('./routes/events');
+const directoryRoutes = require('./routes/directory');
+const userRoutes = require('./routes/users');
+const expenseRoutes = require('./routes/expenses');
+const platformRoutes = require('./routes/platform');
 
 app.use('/api/auth', authRoutes);
 app.use('/api/admin', adminRoutes);
@@ -57,6 +65,13 @@ app.use('/api/bills', billRoutes);
 app.use('/api/tickets', ticketRoutes);
 app.use('/api/societies', societyRoutes);
 app.use('/api/payments', paymentRoutes);
+app.use('/api/announcements', announcementRoutes);
+app.use('/api/visitors', visitorRoutes);
+app.use('/api/events', eventRoutes);
+app.use('/api/directory', directoryRoutes);
+app.use('/api/users', userRoutes);
+app.use('/api/expenses', expenseRoutes);
+app.use('/api/platform', platformRoutes);
 
 // --- DATABASE CONNECTION ---
 mongoose.connect(process.env.MONGO_URI)
@@ -69,10 +84,6 @@ app.get('/api/status', (req, res) => {
         status: "Online", 
         message: "Apartment Management Platform API is running smoothly." 
     });
-});
-
-app.listen(PORT, () => {
-    console.log(`Server executing seamlessly on port ${PORT}`);
 });
 
 app.post('/api/admin/notify', async (req, res) => {
@@ -93,4 +104,23 @@ app.post('/api/admin/notify', async (req, res) => {
     console.error('Twilio Error:', error.message);
     res.status(500).json({ success: false, error: 'Failed to send WhatsApp message' });
   }
+});
+
+// ════════════════════════════════════════════════════
+//  CREATE HTTP SERVER (required for Socket.io)
+// ════════════════════════════════════════════════════
+const server = http.createServer(app);
+
+// ── Initialize Socket.io ──
+const { initSocket } = require('./utils/socket');
+initSocket(server);
+
+// ── Start Cron Jobs (after DB is connected) ──
+mongoose.connection.once('open', () => {
+  const { startCronJobs } = require('./cron/index');
+  startCronJobs();
+});
+
+server.listen(PORT, () => {
+    console.log(`Server executing seamlessly on port ${PORT}`);
 });

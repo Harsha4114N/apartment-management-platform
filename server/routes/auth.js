@@ -165,6 +165,53 @@ router.post('/register-resident', async (req, res) => {
     }
 });
 
+// --- REGISTER A NEW SECURITY GUARD ---
+// POST /api/auth/register-security
+// Body: { fullName, email, password, uniqueJoinCode }
+router.post('/register-security', async (req, res) => {
+    try {
+        const { fullName, email, password, uniqueJoinCode } = req.body;
+
+        if (!fullName || !email || !password || !uniqueJoinCode) {
+            return res.status(400).json({ message: 'All fields are required.' });
+        }
+
+        // Find society by unique join code
+        const society = await Society.findOne({ uniqueJoinCode: uniqueJoinCode.toUpperCase().trim() });
+        if (!society) {
+            return res.status(400).json({ message: 'Invalid join code. Please check and try again.' });
+        }
+
+        // Check if user with this email already exists
+        const existingUser = await User.findOne({ email: email.toLowerCase().trim() });
+        if (existingUser) {
+            return res.status(400).json({ message: 'An account with this email already exists.' });
+        }
+
+        // Hash password
+        const salt = await bcrypt.genSalt(10);
+        const hashedPassword = await bcrypt.hash(password, salt);
+
+        // Create User with role 'Security' and approvalStatus 'Pending'
+        const user = new User({
+            fullName,
+            email: email.toLowerCase().trim(),
+            password: hashedPassword,
+            role: 'Security',
+            approvalStatus: 'Pending',
+            societyId: society._id
+        });
+        await user.save();
+
+        res.status(201).json({
+            message: 'Security account registration submitted. Pending admin approval.'
+        });
+    } catch (error) {
+        console.error('Security registration error:', error);
+        res.status(500).json({ message: 'Server error during registration.' });
+    }
+});
+
 // --- LOGIN (any approved user) ---
 // POST /api/auth/login
 // Body: { email, password }

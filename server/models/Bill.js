@@ -36,6 +36,14 @@ const billSchema = new mongoose.Schema({
     razorpayOrderId: {
         type: String,
         default: null
+    },
+    lateFeeApplied: {
+        type: Boolean,
+        default: false
+    },
+    lateFeeAmount: {
+        type: Number,
+        default: 0
     }
 }, { timestamps: true });
 

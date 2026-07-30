@@ -1,13 +1,46 @@
-# Node dependencies
-node_modules/
+# ═══════════════════════════════════════════════════════════════
+#  NexusGate — Production .gitignore
+# ═══════════════════════════════════════════════════════════════
 
-# Environment variables (keeps your database passwords safe)
+# ── Environment Variables (CRITICAL — keep secrets out of git) ──
 .env
+server/.env
+client/.env
 
-# Build files
-client/build/
+# ── Node Dependencies ──
+node_modules/
+server/node_modules/
+client/node_modules/
+
+# ── Build Artifacts ──
+dist/
+build/
 client/dist/
+client/build/
 
-# OS generated files
+# ── Playwright / E2E Test Artifacts ──
+playwright-report/
+test-results/
+.playwright/
+
+# ── Uploaded Receipts (generated at runtime) ──
+server/uploads/receipts/
+
+# ── Auto-Generated E2E Test Credentials ──
+tests/.auth/
+
+# ── OS Generated Files ──
 .DS_Store
-Thumbs.db   
+Thumbs.db
+desktop.ini
+
+# ── IDE / Editor Files ──
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# ── Debug Logs ──
+*.log
+npm-debug.log*

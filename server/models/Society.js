@@ -21,6 +21,11 @@ const societySchema = new mongoose.Schema({
         type: mongoose.Schema.Types.ObjectId,
         ref: 'User',
         required: true
+    },
+    maintenanceFee: {
+        type: Number,
+        default: 2000,
+        min: 0
     }
 }, { timestamps: true });
 

@@ -8,7 +8,7 @@ const { razorpayMiddleware, razorpayInstance } = require('../middleware/razorpay
 const Bill = require('../models/Bill');
 const User = require('../models/User');
 const authMiddleware = require('../middleware/authMiddleware');
-const { sendWhatsApp } = require('../utils/whatsapp');
+const { sendPushNotification } = require('../utils/webPush');
 
 // Ensure receipts directory exists
 const receiptsDir = path.join(__dirname, '..', 'uploads', 'receipts');
@@ -209,12 +209,11 @@ router.post('/verify-payment', async (req, res) => {
         // Payment is still valid; receipt generation failure is non-fatal
         }
   
-        // ── WhatsApp Notification to Resident ──
+        // ── Web Push Notification to Resident ──
         try {
-            // Find the resident who owns this bill via the flat
             const Flat = require('../models/Flat');
             const billFlat = await Flat.findById(updatedBill.flatId);
-  
+
             if (billFlat) {
                 const residentUser = await User.findOne({
                     societyId: updatedBill.societyId,
@@ -222,29 +221,23 @@ router.post('/verify-payment', async (req, res) => {
                         { _id: billFlat.owner },
                         { _id: { $in: billFlat.currentTenants || [] } }
                     ]
-                }).select('phoneNumber');
-  
-                // Fallback: use resident's phone, or fall back to MY_PHONE_NUMBER env for testing
-                const targetPhone = (residentUser && residentUser.phoneNumber) || process.env.MY_PHONE_NUMBER;
+                }).select('pushSubscriptions');
 
-                console.log('--- WHATSAPP NOTIFICATION TRIGGERED ---');
-                console.log('Event: Payment Received');
-                console.log('Target Phone:', targetPhone);
-                console.log('Resident User:', residentUser ? `${residentUser.phoneNumber || 'no phone'}` : 'not found');
-                console.log('Bill:', updatedBill.title, '| Amount:', updatedBill.amount, '| Payment ID:', razorpay_payment_id);
-
-                if (targetPhone) {
-                    await sendWhatsApp(
-                        `✅ *Payment Received*\n\nAmount: ₹${updatedBill.amount}\nBill: ${updatedBill.title}\nPayment ID: ${razorpay_payment_id}\n\nThank you! Your PDF receipt is now available on your dashboard.`,
-                        { to: targetPhone }
+                const subscriptions = (residentUser && residentUser.pushSubscriptions) || [];
+                if (subscriptions.length > 0) {
+                    await sendPushNotification(
+                        subscriptions,
+                        '✅ Payment Received',
+                        `₹${updatedBill.amount} — ${updatedBill.title} (Receipt available)`,
+                        '/billing'
                     );
-                    console.log('--- WHATSAPP PAYMENT NOTIFICATION SENT ---');
+                    console.log('--- PUSH PAYMENT NOTIFICATION SENT ---');
                 } else {
-                    console.log('WhatsApp: Skipped payment notification — no phone number available');
+                    console.log('WebPush: Skipped payment notification — resident has no push subscriptions');
                 }
             }
-        } catch (waErr) {
-            console.error('WhatsApp Notification Error:', waErr.message);
+        } catch (pushErr) {
+            console.error('WebPush Notification Error (non-blocking):', pushErr.message);
         }
   
         res.status(200).json({

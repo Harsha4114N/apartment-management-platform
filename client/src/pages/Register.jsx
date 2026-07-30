@@ -12,6 +12,7 @@ export default function Register() {
   const [password, setPassword] = useState('');
   const [societyId, setSocietyId] = useState('');
   const [societies, setSocieties] = useState([]);
+  const [role, setRole] = useState('Resident');
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -31,16 +32,25 @@ export default function Register() {
     const toastId = toast.loading('Creating account...');
 
     try {
-      await axios.post(`${API_BASE}/api/auth/register`, { 
-        fullName: name, 
-        email, 
-        flatNumber: apartment, 
-        password,
-        societyId
-      });
+      if (role === 'Security') {
+        await axios.post(`${API_BASE}/api/auth/register-security`, {
+          fullName: name,
+          email,
+          password,
+          uniqueJoinCode: societyId
+        });
+      } else {
+        await axios.post(`${API_BASE}/api/auth/register`, {
+          fullName: name,
+          email,
+          flatNumber: apartment,
+          password,
+          societyId
+        });
+      }
 
       toast.success('Account created successfully!', { id: toastId });
-      navigate('/login'); 
+      navigate('/login');
     } catch (error) {
       console.error(error);
       const errorMessage = error.response?.data?.message || 'Failed to create account.';
@@ -58,21 +68,63 @@ export default function Register() {
         </div>
 
         <form onSubmit={handleRegister} className="space-y-4">
+          {/* Role Selection */}
           <div>
-            <label className="block text-sm font-semibold text-slate-700 mb-1.5">Society / Building</label>
-            <select
-              value={societyId}
-              onChange={(e) => setSocietyId(e.target.value)}
-              className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 transition-all"
-              required
-            >
-              <option value="">Select your building</option>
-              {societies.map((society) => (
-                <option key={society._id} value={society._id}>
-                  {society.name} — {society.address}
-                </option>
-              ))}
-            </select>
+            <label className="block text-sm font-semibold text-slate-700 mb-1.5">Registering as</label>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => setRole('Resident')}
+                className={`flex-1 py-3 px-4 rounded-xl text-sm font-bold transition-all duration-200 cursor-pointer ${
+                  role === 'Resident'
+                    ? 'bg-blue-600 text-white shadow-md shadow-blue-200'
+                    : 'bg-slate-50 text-slate-600 border border-slate-200 hover:bg-slate-100'
+                }`}
+              >
+                🏠 Resident
+              </button>
+              <button
+                type="button"
+                onClick={() => setRole('Security')}
+                className={`flex-1 py-3 px-4 rounded-xl text-sm font-bold transition-all duration-200 cursor-pointer ${
+                  role === 'Security'
+                    ? 'bg-blue-600 text-white shadow-md shadow-blue-200'
+                    : 'bg-slate-50 text-slate-600 border border-slate-200 hover:bg-slate-100'
+                }`}
+              >
+                🛡️ Security Guard
+              </button>
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-semibold text-slate-700 mb-1.5">
+              {role === 'Security' ? 'Society Join Code' : 'Society / Building'}
+            </label>
+            {role === 'Security' ? (
+              <input
+                type="text"
+                placeholder="e.g., ABC123"
+                value={societyId}
+                onChange={(e) => setSocietyId(e.target.value.toUpperCase())}
+                className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 transition-all"
+                required
+              />
+            ) : (
+              <select
+                value={societyId}
+                onChange={(e) => setSocietyId(e.target.value)}
+                className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 transition-all"
+                required
+              >
+                <option value="">Select your building</option>
+                {societies.map((society) => (
+                  <option key={society._id} value={society._id}>
+                    {society.name} — {society.address}
+                  </option>
+                ))}
+              </select>
+            )}
           </div>
 
           <div>
@@ -99,17 +151,19 @@ export default function Register() {
                 required
               />
             </div>
-            <div className="col-span-2 sm:col-span-1">
-              <label className="block text-sm font-semibold text-slate-700 mb-1.5">Apt Number</label>
-              <input
-                type="text"
-                placeholder="e.g., 402B"
-                value={apartment}
-                onChange={(e) => setApartment(e.target.value)}
-                className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 transition-all"
-                required
-              />
-            </div>
+            {role === 'Resident' && (
+              <div className="col-span-2 sm:col-span-1">
+                <label className="block text-sm font-semibold text-slate-700 mb-1.5">Apt Number</label>
+                <input
+                  type="text"
+                  placeholder="e.g., 402B"
+                  value={apartment}
+                  onChange={(e) => setApartment(e.target.value)}
+                  className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 transition-all"
+                  required
+                />
+              </div>
+            )}
           </div>
 
           <div>

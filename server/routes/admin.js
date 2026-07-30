@@ -3,7 +3,7 @@ const User = require('../models/User');
 const Ticket = require('../models/Ticket');
 const Bill = require('../models/Bill');
 const authMiddleware = require('../middleware/authMiddleware');
-const { sendWhatsApp } = require('../utils/whatsapp');
+const { sendPushNotification } = require('../utils/webPush');
 
 const router = express.Router();
 
@@ -147,33 +147,25 @@ router.put('/tickets/:id/status', async (req, res) => {
             return res.status(404).json({ message: 'Ticket not found in your society.' });
         }
 
-        // ── WhatsApp Notification to Resident ──
+        // ── Web Push Notification to Resident ──
         try {
-            // ticket.resident is already populated with fullName and email
-            // We need to fetch the full user doc to get phoneNumber
             const residentUser = await User.findById(ticket.resident._id || ticket.resident)
-                .select('phoneNumber');
+                .select('pushSubscriptions');
 
-            // Fallback: use resident's phone, or fall back to MY_PHONE_NUMBER env for testing
-            const targetPhone = (residentUser && residentUser.phoneNumber) || process.env.MY_PHONE_NUMBER;
-
-            console.log('--- WHATSAPP NOTIFICATION TRIGGERED ---');
-            console.log('Event: Ticket Status Update');
-            console.log('Target Phone:', targetPhone);
-            console.log('Resident User:', residentUser ? `${residentUser.phoneNumber || 'no phone'}` : 'not found');
-            console.log('Ticket:', ticket.title, '| New Status:', status, '| Category:', ticket.category);
-
-            if (targetPhone) {
-                await sendWhatsApp(
-                    `🔧 *Ticket Status Updated*\n\nIssue: ${ticket.title}\nNew Status: *${status}*\nCategory: ${ticket.category}\n\nCheck your dashboard for further details.`,
-                    { to: targetPhone }
+            const subscriptions = (residentUser && residentUser.pushSubscriptions) || [];
+            if (subscriptions.length > 0) {
+                await sendPushNotification(
+                    subscriptions,
+                    '🔧 Ticket Status Updated',
+                    `${ticket.title} — ${status}`,
+                    '/maintenance'
                 );
-                console.log('--- WHATSAPP TICKET NOTIFICATION SENT ---');
+                console.log('--- PUSH TICKET NOTIFICATION SENT ---');
             } else {
-                console.log('WhatsApp: Skipped ticket notification — no phone number available');
+                console.log('WebPush: Skipped ticket notification — resident has no push subscriptions');
             }
-        } catch (waErr) {
-            console.error('WhatsApp Notification Error:', waErr.message);
+        } catch (pushErr) {
+            console.error('WebPush Notification Error (non-blocking):', pushErr.message);
         }
 
         res.status(200).json({
@@ -237,6 +229,49 @@ router.get('/metrics', async (req, res) => {
     } catch (error) {
         console.error('Error fetching admin metrics:', error);
         res.status(500).json({ message: 'Server error while fetching metrics.' });
+    }
+});
+
+// --- DELETE (REMOVE) A USER from the society ---
+// DELETE /api/admin/users/:id
+// SuperAdmin/Admin can remove a user (delete document permanently)
+router.delete('/users/:id', async (req, res) => {
+    try {
+        if (req.user.role !== 'SuperAdmin' && req.user.role !== 'Admin') {
+            return res.status(403).json({ message: 'Access denied. Admin privileges required.' });
+        }
+
+        const { id } = req.params;
+
+        // Find the user and verify they belong to the same society
+        const user = await User.findOne({
+            _id: id,
+            societyId: req.user.societyId
+        });
+
+        if (!user) {
+            return res.status(404).json({ message: 'User not found in your society.' });
+        }
+
+        // Don't allow removing yourself
+        if (user._id.toString() === req.user.id.toString()) {
+            return res.status(400).json({ message: 'Cannot remove yourself. Use a different admin account.' });
+        }
+
+        const removedName = user.fullName;
+
+        // Delete the user document permanently
+        await User.findByIdAndDelete(id);
+
+        console.log(`[Admin] User "${removedName}" (${id}) removed from society ${req.user.societyId} by admin ${req.user.id}.`);
+
+        res.status(200).json({
+            message: `User "${removedName}" has been removed from the society.`,
+            userId: id
+        });
+    } catch (error) {
+        console.error('Error removing user:', error);
+        res.status(500).json({ message: 'Server error while removing user.' });
     }
 });
 

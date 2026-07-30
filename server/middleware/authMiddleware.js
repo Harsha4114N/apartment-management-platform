@@ -17,7 +17,8 @@ module.exports = async function(req, res, next) {
             return res.status(401).json({ message: 'User no longer exists.' });
         }
 
-        if (user.approvalStatus !== 'Approved') {
+        // PlatformAdmin bypasses approval check (they are master-level)
+        if (user.role !== 'PlatformAdmin' && user.approvalStatus !== 'Approved') {
             return res.status(403).json({ message: 'Your account is pending approval or has been rejected.' });
         }
 

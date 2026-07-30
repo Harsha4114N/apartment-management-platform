@@ -1,9 +1,11 @@
 {
   "name": "server",
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "description": "NexusGate - Apartment Management Platform (Backend API)",
+  "main": "server.js",
   "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],
@@ -20,8 +22,12 @@
     "mongoose": "^9.7.4",
     "multer": "^2.2.0",
     "multer-storage-cloudinary": "^4.0.0",
+    "node-cron": "^4.6.0",
     "pdfkit": "^0.19.1",
+    "qrcode": "^1.5.4",
     "razorpay": "^2.9.8",
-    "twilio": "^6.0.2"
+    "socket.io": "^4.8.3",
+    "twilio": "^6.0.2",
+    "web-push": "^3.6.7"
   }
 }

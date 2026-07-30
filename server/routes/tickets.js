@@ -5,20 +5,40 @@ const Flat = require('../models/Flat');
 const auth = require('../middleware/authMiddleware');
 const upload = require('../middleware/upload');
 const User = require('../models/User');
-const { sendWhatsApp } = require('../utils/whatsapp');
+const { sendPushNotification } = require('../utils/webPush');
+const { uploadToCloudStorage, decodeBase64Image } = require('../utils/cloudStorage');
+const { getIO } = require('../utils/socket');
 
 // --- CREATE A NEW TICKET (WITH WHATSAPP IMAGE ATTACHMENT) ---
 // The upload middleware handles Cloudinary credential validation, multer errors,
 // file size limits, and format restrictions — returning clean JSON on failure
+// Supports both:
+//   - multipart/form-data with a file field "image" (from standard upload)
+//   - JSON body with "imageBase64" (Base64 data-URI from camera snapshot)
 router.post('/', auth, upload.single('image'), async (req, res) => {
     try {
-        const { title, description, category } = req.body;
+        const { title, description, category, imageBase64 } = req.body;
 
         if (!req.user.societyId) {
             return res.status(403).json({ message: "No society associated with this account." });
         }
         
-        const imageUrl = req.file ? req.file.path : '';
+        // ── Determine image URL from either source ──
+        let imageUrl = '';
+        if (req.file) {
+            // Case 1: Standard file upload via multer/Cloudinary
+            imageUrl = req.file.path;
+        } else if (imageBase64 && typeof imageBase64 === 'string' && imageBase64.startsWith('data:image/')) {
+            // Case 2: Base64 data-URI from camera snapshot
+            try {
+                const decoded = decodeBase64Image(imageBase64);
+                imageUrl = await uploadToCloudStorage(decoded);
+            } catch (decodeErr) {
+                console.error('Base64 decode/upload error:', decodeErr.message);
+                // Non-fatal — ticket still created without image
+                imageUrl = '';
+            }
+        }
 
         const residentInfo = await User.findById(req.user.id);
         
@@ -55,15 +75,49 @@ router.post('/', auth, upload.single('image'), async (req, res) => {
         const ticket = await newTicket.save();
         console.log('Ticket created successfully:', ticket._id);
 
-        // ── WhatsApp Notification (non-blocking) ──
+        // ── Real-time Socket.io Event ──
         try {
-            const mediaUrls = imageUrl ? [imageUrl] : undefined;
-            await sendWhatsApp(
-                `🚨 *New Maintenance Ticket*\n\n*Flat:* ${userFlatNumber}\n*Issue:* ${title}\n*Category:* ${category}\n*Details:* ${description}`,
-                { mediaUrls }
-            );
-        } catch (twilioErr) {
-            console.error('WhatsApp Notification Error:', twilioErr.message);
+            const io = getIO();
+            io.emit('new_alert', {
+                type: 'ticket',
+                action: 'created',
+                title,
+                category,
+                flatNumber: userFlatNumber,
+                ticketId: ticket._id,
+                timestamp: new Date().toISOString(),
+            });
+            // Also emit to the society-specific room
+            io.to(`society:${req.user.societyId}`).emit('new_alert', {
+                type: 'ticket',
+                action: 'created',
+                title,
+                category,
+                flatNumber: userFlatNumber,
+                ticketId: ticket._id,
+                timestamp: new Date().toISOString(),
+            });
+        } catch (socketErr) {
+            console.error('Socket.io emit error (non-blocking):', socketErr.message);
+        }
+
+        // ── Web Push Notification (non-blocking) ──
+        try {
+            const adminUsers = await User.find({
+                societyId: req.user.societyId,
+                role: { $in: ['SuperAdmin', 'Admin'] }
+            }).lean();
+            const subscriptions = adminUsers.flatMap(u => u.pushSubscriptions || []);
+            if (subscriptions.length > 0) {
+                await sendPushNotification(
+                    subscriptions,
+                    '🛠️ New Maintenance Ticket',
+                    `Flat ${userFlatNumber}: ${title} — ${category}`,
+                    '/maintenance'
+                );
+            }
+        } catch (pushErr) {
+            console.error('[WebPush] Ticket notification error (non-blocking):', pushErr.message);
         }
 
         res.status(201).json(ticket);

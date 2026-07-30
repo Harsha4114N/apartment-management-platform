@@ -23,7 +23,7 @@ const userSchema = new mongoose.Schema({
     },
     role: {
         type: String,
-        enum: ['SuperAdmin', 'Admin', 'Treasurer', 'Resident'],
+        enum: ['PlatformAdmin', 'SuperAdmin', 'Admin', 'Treasurer', 'Resident', 'Security'],
         default: 'Resident'
     },
     societyId: {
@@ -35,7 +35,19 @@ const userSchema = new mongoose.Schema({
         type: String,
         enum: ['Pending', 'Approved', 'Rejected'],
         default: 'Pending'
-    }
+    },
+    familyMembers: [{
+        name: { type: String, required: true, trim: true },
+        age: { type: Number, required: true, min: 0 },
+        relation: { type: String, required: true, trim: true }
+    }],
+    pushSubscriptions: [{
+        endpoint: { type: String, required: true },
+        keys: {
+            p256dh: { type: String, required: true },
+            auth: { type: String, required: true }
+        }
+    }]
 }, { timestamps: true });
 
 module.exports = mongoose.model('User', userSchema);

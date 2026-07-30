@@ -1,16 +1,27 @@
 const Razorpay = require('razorpay');
 
+let razorpayInstance = null;
+let razorpayConfigured = true;
+
 // 1. Initialize the instance using your environment variables
-const razorpayInstance = new Razorpay({
-  key_id: process.env.RAZORPAY_KEY_ID,
-  key_secret: process.env.RAZORPAY_KEY_SECRET,
-});
+try {
+  razorpayInstance = new Razorpay({
+    key_id: process.env.RAZORPAY_KEY_ID,
+    key_secret: process.env.RAZORPAY_KEY_SECRET,
+  });
+} catch (initErr) {
+  console.error('Razorpay Init Error: RAZORPAY_KEY_ID or RAZORPAY_KEY_SECRET missing/bad. Payment features disabled.', initErr.message);
+  razorpayConfigured = false;
+}
 
 const razorpayMiddleware = (req, res, next) => {
+  if (!razorpayConfigured || !razorpayInstance) {
+    return res.status(502).json({ message: 'Payment gateway is not configured. Please set RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET in environment variables.' });
+  }
   if (req.body.amount && req.body.currency) {
     const options = {
       // 2. Multiply by 100 to convert Rupees to Paise (Math.round prevents floating point decimals)
-      amount: Math.round(req.body.amount * 100), 
+      amount: Math.round(req.body.amount * 100),
       currency: req.body.currency,
     };
     
