@@ -21,6 +21,7 @@ client/build/
 # ── Playwright / E2E Test Artifacts ──
 playwright-report/
 test-results/
+prod-test-results/
 .playwright/
 
 # ── Uploaded Receipts (generated at runtime) ──
