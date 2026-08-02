@@ -19,6 +19,9 @@ const PORT = process.env.PORT || 5000;
 // --- CORS Configuration ---
 const allowedOrigins = [
     process.env.CLIENT_URL,
+    // Hardcoded production frontend (Vercel) — must always be allowed even if
+    // CLIENT_URL is missing/empty in the Render environment.
+    'https://apartment-management-platform-beta.vercel.app',
     'http://localhost:5173',
     'http://localhost:3000'
 ].filter(Boolean);
@@ -35,6 +38,9 @@ const corsOptions = {
         return callback(new Error('Not allowed by CORS'));
     },
     credentials: true,
+    // Return 200 (instead of default 204) for preflight OPTIONS requests —
+    // guarantees CORS preflight succeeds even behind proxies.
+    optionsSuccessStatus: 200,
 };
 
 app.use(cors(corsOptions));
